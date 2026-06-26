@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="canvas:aspect-ratio" content="16:9">
+  <title>韶华设计 | SHAOUHA DESIGN</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;600;700;900&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --seed-bg: #000000;
+      --seed-fg: #f0f0f0;
+      --seed-accent: #ffffff;
+      --seed-surface: #000000;
+      --seed-radius: 4px;
+
+      --bg-primary: #000000;
+      --bg-secondary: #000000;
+      --bg-card: #000000;
+      --surface: #000000;
+      --border: rgba(255,255,255,0.08);
+      --border-hover: rgba(255,255,255,0.2);
+      --text-primary: var(--seed-fg);
+      --text-secondary: #999999;
+      --text-muted: #555555;
+      --accent: var(--seed-accent);
+      --accent-glow: rgba(255,255,255,0.08);
+      --font-display: 'Playfair Display', 'Noto Sans SC', serif;
+      --font-body: 'Noto Sans SC', -apple-system, sans-serif;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 15px;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ===== PARTICLE CANVAS ===== */
+    #particle-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    /* ===== NAVIGATION ===== */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 0 48px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: background 0.5s var(--ease-smooth), border-color 0.5s var(--ease-smooth);
+    }
+
+    nav.scrolled {
+      background: rgba(0,0,0,0.88);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      font-family: "Noto Sans SC", -apple-system, sans-serif;
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--text-primary);
+      letter-spacing: 0.08em;
+      text-decoration: none;
+    }
+
+    .brand-cn {
+      font-family: "FZLanTingKanHei-Light-GB", "FZLanTingKanHei-ExtraLight-GB", "FZLanTingKanHei-Light", "兰亭刊黑 Light", "Source Han Sans SC Light", "Noto Sans SC", sans-serif;
+      font-weight: 300;
+      margin-left: 8px;
+      letter-spacing: 0.04em;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 36px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 16px;
+      font-weight: 400;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: color 0.3s ease;
+      position: relative;
+    }
+
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 1px;
+      background: var(--accent);
+      transition: width 0.4s var(--ease-out);
+    }
+
+    .nav-links a:hover { color: var(--text-primary); }
+    .nav-links a:hover::after { width: 100%; }
+
+    /* ===== HERO ===== */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 120px 48px 80px;
+    }
+
+    .hero-label {
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #c97b63 0%, #e8a87c 25%, #d4956b 50%, #cf8e76 75%, #c97b63 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 32px;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: heroFade 0.8s var(--ease-out) 0.2s forwards;
+    }
+
+    .hero-title {
+      font-family: var(--font-body);
+      font-size: clamp(48px, 9vw, 100px);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      color: rgb(255,255,255);
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateY(30px);
+      animation: heroFade 1s var(--ease-out) 0.4s forwards;
+    }
+
+    .hero-subtitle {
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-weight: 300;
+      letter-spacing: 0.12em;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: heroFade 0.8s var(--ease-out) 0.7s forwards;
+    }
+
+    .hero-line {
+      width: 1px;
+      height: 80px;
+      background: linear-gradient(to bottom, var(--accent), transparent);
+      margin-top: 60px;
+      opacity: 0;
+      animation: heroFade 0.8s var(--ease-out) 1s forwards;
+    }
+
+    @keyframes heroFade {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== FILTER BAR ===== */
+    .filter-section {
+      position: relative;
+      z-index: 1;
+      padding: 0 48px 48px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .filter-container {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 10px 24px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--seed-radius);
+      color: var(--text-secondary);
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .filter-btn::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border: 1px solid rgba(255,255,255,0);
+      border-radius: var(--seed-radius);
+      transition: border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), inset 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .filter-btn:hover {
+      color: var(--text-primary);
+      transform: scale(1.08);
+      border-color: rgba(255,255,255,0.3);
+    }
+
+    .filter-btn:hover::before {
+      border-color: rgba(255,255,255,0.5);
+      inset: -4px;
+    }
+
+    .filter-btn.active {
+      color: var(--text-primary);
+      background: transparent;
+      border-color: rgba(255,255,255,0.4);
+      font-weight: 500;
+    }
+
+    /* ===== MASONRY GRID ===== */
+    .portfolio-section {
+      position: relative;
+      z-index: 1;
+      padding: 0 48px 100px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .masonry-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    /* ===== PORTFOLIO CARD ===== */
+    .portfolio-card {
+      position: relative;
+      border-radius: var(--seed-radius);
+      overflow: hidden;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(50px) scale(0.97);
+      transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+      aspect-ratio: 4/3;
+    }
+
+    .portfolio-card.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .portfolio-card.hidden { display: none; }
+
+    .card-image-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .card-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+    }
+
+    .portfolio-card:hover .card-image {
+      transform: scale(1.12);
+    }
+
+    .card-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 40%, transparent 100%);
+      opacity: 0;
+      transition: opacity 0.5s var(--ease-smooth);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 24px 20px;
+    }
+
+    .portfolio-card:hover .card-overlay { opacity: 1; }
+
+    .card-category {
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+      transform: translateY(10px);
+      transition: transform 0.4s var(--ease-out) 0.05s;
+    }
+
+    .portfolio-card:hover .card-category { transform: translateY(0); }
+
+    .card-title {
+      font-family: var(--font-body);
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: 0.01em;
+      line-height: 1.4;
+      transform: translateY(10px);
+      transition: transform 0.4s var(--ease-out) 0.1s;
+    }
+
+    .portfolio-card:hover .card-title { transform: translateY(0); }
+
+    .card-arrow {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(0.7) rotate(-45deg);
+      transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out);
+    }
+
+    .portfolio-card:hover .card-arrow {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+
+    .card-arrow svg {
+      width: 14px;
+      height: 14px;
+      stroke: white;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    /* ===== CLICK RIPPLE ===== */
+    .click-ripple {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      border: 1px solid rgba(255,255,255,0.15);
+      transform: scale(0);
+      animation: rippleSoft 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    @keyframes rippleSoft {
+      0% { transform: scale(0); opacity: 0.6; }
+      100% { transform: scale(3); opacity: 0; }
+    }
+
+    /* ===== PROFILE OVERLAY ===== */
+    .profile-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: var(--bg-primary);
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.6s var(--ease-out);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .profile-overlay.active {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* ===== OVERLAY CLOSE BUTTONS (shared) ===== */
+    .detail-close,
+    .contact-close,
+    .profile-close {
+      position: fixed;
+      top: 24px;
+      right: 32px;
+      z-index: 1001;
+      width: 48px;
+      height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: rgba(0,0,0,0.9);
+      backdrop-filter: blur(12px);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.3s ease, transform 0.3s ease;
+    }
+
+    .detail-close:hover,
+    .contact-close:hover,
+    .profile-close:hover {
+      border-color: var(--border-hover);
+      transform: rotate(90deg);
+    }
+
+    .detail-close svg,
+    .contact-close svg,
+    .profile-close svg {
+      width: 18px;
+      height: 18px;
+      stroke: white;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .profile-header {
+      padding: 120px 48px 60px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .profile-title {
+      font-family: var(--font-body);
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+
+    .profile-subtitle {
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-weight: 300;
+      letter-spacing: 0.08em;
+    }
+
+    .profile-content {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 48px 80px;
+    }
+
+    .profile-bio {
+      margin-bottom: 48px;
+    }
+
+    .profile-bio p {
+      font-size: 15px;
+      line-height: 1.9;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+
+    .profile-bio p:last-child {
+      margin-bottom: 0;
+    }
+
+    .profile-photo-large {
+      margin-bottom: 48px;
+      border-radius: var(--seed-radius);
+      overflow: hidden;
+      aspect-ratio: 4/3;
+    }
+
+    .profile-photo-large img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* ===== CONTACT OVERLAY ===== */
+    .contact-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: var(--bg-primary);
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.6s var(--ease-out);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .contact-overlay.active {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .contact-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 80px;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 120px 48px 80px;
+      min-height: 100vh;
+      align-items: start;
+    }
+
+    .contact-left {
+      position: sticky;
+      top: 120px;
+    }
+
+    .contact-title {
+      font-family: var(--font-body);
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin-bottom: 0;
+    }
+
+    .contact-title-en {
+      font-size: clamp(20px, 3vw, 32px);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--text-primary);
+    }
+
+    .contact-right {
+      display: flex;
+      flex-direction: column;
+      gap: 48px;
+      padding-top: 20px;
+    }
+
+    .contact-info-block {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .contact-info-label {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--text-primary);
+    }
+
+    .contact-phone-main {
+      font-size: clamp(36px, 5vw, 56px);
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 0.02em;
+      line-height: 1.1;
+    }
+
+    .contact-phone-sub {
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
+
+    .contact-email-value {
+      font-size: 18px;
+      color: var(--text-primary);
+      text-decoration: none;
+      font-weight: 400;
+      transition: color 0.3s ease;
+      display: inline-block;
+    }
+
+    .contact-email-value:hover {
+      color: var(--accent);
+    }
+
+    .contact-qr-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .contact-qr-wrapper {
+      width: 160px;
+      height: 160px;
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .contact-qr-wrapper img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .contact-qr-placeholder {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 12px;
+      border-radius: 4px;
+    }
+
+    /* ===== DETAIL OVERLAY ===== */
+    .detail-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: var(--bg-primary);
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.6s var(--ease-out);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .detail-overlay.active {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* ===== BACK TO TOP BUTTONS (shared) ===== */
+    .main-back-top,
+    .detail-back-top,
+    .contact-back-top,
+    .profile-back-top {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      width: 56px;
+      height: 56px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: rgba(0,0,0,0.9);
+      backdrop-filter: blur(12px);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .main-back-top { z-index: 99; }
+    .detail-back-top,
+    .contact-back-top,
+    .profile-back-top { z-index: 1001; }
+
+    .main-back-top.visible,
+    .detail-overlay.active ~ .detail-back-top.visible,
+    .contact-overlay.active ~ .contact-back-top.visible,
+    .profile-overlay.active ~ .profile-back-top.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .main-back-top:hover,
+    .detail-back-top:hover,
+    .contact-back-top:hover,
+    .profile-back-top:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-4px);
+    }
+
+    .main-back-top svg,
+    .detail-back-top svg,
+    .contact-back-top svg,
+    .profile-back-top svg {
+      width: 22px;
+      height: 22px;
+      stroke: white;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .detail-header {
+      padding: 120px 48px 60px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .detail-category {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+
+    .detail-title {
+      font-family: var(--font-body);
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin-bottom: 32px;
+    }
+
+    .detail-desc {
+      font-size: 15px;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      max-width: 720px;
+      margin-bottom: 48px;
+    }
+
+    .detail-meta {
+      display: flex;
+      gap: 48px;
+      padding: 24px 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 60px;
+    }
+
+    .detail-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .detail-meta-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .detail-meta-value {
+      font-size: 14px;
+      color: var(--text-primary);
+      font-weight: 400;
+    }
+
+    .detail-gallery {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 48px 80px;
+    }
+
+    .detail-gallery-img {
+      width: 100%;
+      display: block;
+      margin-bottom: 24px;
+      border-radius: var(--seed-radius);
+      object-fit: cover;
+    }
+
+    .detail-gallery-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .detail-gallery-row img {
+      width: 100%;
+      border-radius: var(--seed-radius);
+      object-fit: cover;
+      aspect-ratio: 4/3;
+    }
+
+    .detail-related {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 60px 48px 100px;
+      border-top: 1px solid var(--border);
+    }
+
+    .detail-related-title {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+    }
+
+    .detail-related-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .detail-related-card {
+      position: relative;
+      border-radius: var(--seed-radius);
+      overflow: hidden;
+      cursor: pointer;
+      aspect-ratio: 4/3;
+      transition: transform 0.4s var(--ease-out);
+    }
+
+    .detail-related-card:hover {
+      transform: translateY(-4px);
+    }
+
+    .detail-related-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .detail-related-card .related-info {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 16px;
+      background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    }
+
+    .detail-related-card .related-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: white;
+    }
+
+
+    /* ===== FOOTER ===== */
+    footer {
+      position: relative;
+      z-index: 1;
+      padding: 60px 48px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+
+    .footer-inner {
+      max-width: 1600px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-left { }
+
+    .footer-brand {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .footer-copy {
+      font-size: 12px;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 28px;
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      transition: color 0.3s ease;
+    }
+
+    .footer-links a:hover { color: var(--accent); }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1200px) {
+      .masonry-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 900px) {
+      .masonry-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+      nav, .filter-section, .portfolio-section { padding-left: 24px; padding-right: 24px; }
+      .hero { padding: 100px 24px 60px; }
+      .hero-label { font-size: 18px; letter-spacing: 0.15em; }
+      .hero-subtitle { font-size: 14px; }
+      footer { padding: 40px 24px; }
+      .filter-container { flex-wrap: wrap; gap: 8px; }
+      .filter-btn { padding: 8px 16px; font-size: 12px; }
+      .contact-layout { gap: 48px; padding: 100px 24px 60px; }
+      .profile-header { padding: 100px 24px 40px; }
+      .profile-content { padding: 0 24px 60px; }
+      .detail-header { padding: 100px 24px 40px; }
+      .detail-gallery { padding: 0 24px 60px; }
+      .detail-gallery-row { grid-template-columns: 1fr; }
+      .detail-related { padding: 40px 24px 80px; }
+      .detail-related-grid { grid-template-columns: repeat(2, 1fr); }
+      .detail-meta { flex-wrap: wrap; gap: 24px; }
+    }
+
+    @media (max-width: 600px) {
+      .masonry-grid { grid-template-columns: 1fr; gap: 12px; }
+      nav { padding: 0 16px; height: 56px; }
+      .brand { font-size: 15px; }
+      .nav-links { gap: 14px; }
+      .nav-links a { font-size: 11px; letter-spacing: 0.04em; }
+      .hero { padding: 80px 16px 48px; min-height: 70vh; }
+      .hero-label { font-size: 16px; letter-spacing: 0.12em; margin-bottom: 20px; }
+      .hero-title { font-size: 28px; line-height: 1.1; }
+      .hero-subtitle { font-size: 13px; letter-spacing: 0.06em; }
+      .hero-line { width: 40px; }
+      .filter-section { padding: 16px; }
+      .filter-container { gap: 6px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 4px; }
+      .filter-container::-webkit-scrollbar { display: none; }
+      .filter-btn { padding: 8px 14px; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+      .portfolio-section { padding: 24px 16px; }
+      .portfolio-card { aspect-ratio: 4/3; }
+      .card-title { font-size: 13px; }
+      .card-category { font-size: 10px; }
+      footer { padding: 32px 16px; }
+      .footer-inner { flex-direction: column; gap: 24px; text-align: center; }
+      .footer-links { flex-direction: column; gap: 12px; }
+      .footer-brand { font-size: 13px; }
+      .footer-copy { font-size: 11px; }
+
+      /* Detail page mobile */
+      .detail-header { padding: 72px 16px 32px; }
+      .detail-category { font-size: 10px; }
+      .detail-title { font-size: 24px; margin-bottom: 20px; }
+      .detail-desc { font-size: 14px; line-height: 1.7; margin-bottom: 32px; }
+      .detail-meta { gap: 16px; margin-bottom: 40px; padding: 16px 0; }
+      .detail-meta-label { font-size: 10px; }
+      .detail-meta-value { font-size: 12px; }
+      .detail-gallery { padding: 0 16px 40px; }
+      .detail-gallery-img { margin-bottom: 12px; }
+      .detail-related { padding: 24px 16px 60px; }
+      .detail-related-title { font-size: 14px; margin-bottom: 20px; }
+      .detail-related-grid { grid-template-columns: 1fr; gap: 16px; }
+
+      /* Contact page mobile */
+      .contact-layout {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        padding: 80px 16px 48px;
+      }
+      .contact-left {
+        position: static;
+      }
+      .contact-title { font-size: 28px; }
+      .contact-title-en { font-size: 18px; }
+      .contact-right { gap: 36px; }
+      .contact-phone-main { font-size: 32px; }
+      .contact-phone-sub { font-size: 14px; }
+      .contact-email-value { font-size: 16px; word-break: break-all; }
+      .contact-qr-wrapper { width: 140px; height: 140px; }
+
+      /* Profile page mobile */
+      .profile-header { padding: 72px 16px 32px; }
+      .profile-title { font-size: 28px; }
+      .profile-subtitle { font-size: 14px; }
+      .profile-content { padding: 0 16px 48px; }
+      .profile-photo-large { max-width: 220px; margin-bottom: 32px; }
+      .profile-bio { margin-bottom: 32px; }
+      .profile-bio p { font-size: 14px; line-height: 1.8; }
+
+      /* Back to top buttons mobile */
+      .main-back-top,
+      .detail-back-top,
+      .contact-back-top,
+      .profile-back-top {
+        width: 40px;
+        height: 40px;
+        bottom: 20px;
+        right: 20px;
+      }
+      .main-back-top svg,
+      .detail-back-top svg,
+      .contact-back-top svg,
+      .profile-back-top svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      /* Close buttons mobile */
+      .detail-close,
+      .contact-close,
+      .profile-close {
+        width: 40px;
+        height: 40px;
+        top: 16px;
+        right: 16px;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .hero-title { font-size: 24px; }
+      .hero-label { font-size: 14px; }
+      .nav-links { gap: 10px; }
+      .nav-links a { font-size: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="particle-canvas"></canvas>
+
+  <nav id="navbar" data-component="navbar">
+    <a href="#top" class="brand"><span class="brand-en">SHAOHUA</span><span class="brand-cn">韶华</span></a>
+    <ul class="nav-links">
+      <li><a href="#works">作品</a></li>
+      <li><a href="javascript:void(0)" onclick="openProfile()">简介</a></li>
+      <li><a href="javascript:void(0)" onclick="openContact()">联系</a></li>
+    </ul>
+  </nav>
+
+  <main id="top">
+    <section class="hero" data-component="hero">
+      <p class="hero-label">Portfolio Showcase</p>
+      <h1 class="hero-title">SHAOHUA DESIGN</h1>
+      <p class="hero-subtitle">品牌视觉 · 画册设计 · 包装创意 · 多元表达</p>
+      <div class="hero-line"></div>
+    </section>
+
+    <section class="filter-section" id="works" data-component="filter">
+      <div class="filter-container">
+        <button class="filter-btn active" data-filter="all">全部</button>
+        <button class="filter-btn" data-filter="vi">标志VI</button>
+        <button class="filter-btn" data-filter="catalog">画册视觉</button>
+        <button class="filter-btn" data-filter="packaging">包装设计</button>
+        <button class="filter-btn" data-filter="other">其他</button>
+      </div>
+    </section>
+
+    <section class="portfolio-section" data-component="portfolio-grid">
+      <div class="masonry-grid" id="masonryGrid"></div>
+    </section>
+  </main>
+
+  <footer id="contact" data-component="footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <div class="footer-brand">SHAOHUA DESIGN</div>
+        <p class="footer-copy">&copy; 2026 韶华设计工作室. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Main Page Back to Top -->
+  <button class="main-back-top" id="mainBackTop" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+
+  <!-- Detail Overlay -->
+  <div class="detail-overlay" id="detailOverlay" data-component="detail-page">
+    <button class="detail-close" id="detailClose" aria-label="关闭">
+      <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="detailContent"></div>
+  </div>
+  <!-- Detail Back to Top (outside overlay for true fixed positioning) -->
+  <button class="detail-back-top" id="detailBackTop" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+
+  <!-- Contact Overlay -->
+  <div class="contact-overlay" id="contactOverlay" data-component="contact-page">
+    <button class="contact-close" id="contactClose" aria-label="关闭">
+      <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="contact-layout">
+      <div class="contact-left">
+        <h1 class="contact-title">联系我们</h1>
+        <div class="contact-title-en">CONTACT US</div>
+      </div>
+      <div class="contact-right">
+        <div class="contact-info-block">
+          <div class="contact-info-label">咨询热线</div>
+          <div class="contact-phone-main">400-607-6071</div>
+          <div class="contact-phone-sub">010-62576839 3913</div>
+        </div>
+        <div class="contact-info-block">
+          <div class="contact-info-label">EMAIL</div>
+          <a href="mailto:k5@drafoon.com" class="contact-email-value">k5@drafoon.com</a>
+        </div>
+        <div class="contact-qr-section">
+          <div class="contact-info-label">微信</div>
+          <div class="contact-qr-wrapper">
+            <div class="contact-qr-placeholder">微信二维码</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Contact Back to Top (outside overlay for true fixed positioning) -->
+  <button class="contact-back-top" id="contactBackTop" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+
+  <!-- Profile Overlay -->
+  <div class="profile-overlay" id="profileOverlay" data-component="profile-page">
+    <button class="profile-close" id="profileClose" aria-label="关闭">
+      <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="profile-header">
+      <h1 class="profile-title">简介</h1>
+      <p class="profile-subtitle">品牌设计师 · 视觉艺术家</p>
+    </div>
+    <div class="profile-content">
+      <div class="profile-photo-large" style="aspect-ratio:3/4;max-width:280px;margin:0 auto 48px;">
+        <img src="https://picsum.photos/seed/designer-portrait/600/800" alt="韶华" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22600%22 height=%22800%22%3E%3Crect fill=%22%23111%22 width=%22600%22 height=%22800%22/%3E%3Ctext x=%22300%22 y=%22410%22 font-family=%22sans-serif%22 font-size=%2228%22 fill=%22%23333%22 text-anchor=%22middle%22%3ESHAOHUA%3C/text%3E%3C/svg%3E'">
+      </div>
+      <div class="profile-bio">
+        <p>
+          我是一名专注于品牌设计与视觉传达的独立设计师，拥有超过十年的设计经验。我相信优秀的设计不仅是视觉上的美感，更是品牌故事与用户情感的桥梁。
+        </p>
+        <p>
+          从企业视觉识别系统到产品包装设计，从画册排版到数字媒体创意，我始终以精益求精的态度对待每一个项目。我的设计理念是：简约而不简单，精致而有温度。
+        </p>
+        <p>
+          多年来，我服务过众多知名品牌，涵盖科技、美妆、酒店、公共事业等多个领域。每一次合作都是一次创造价值的机会，我致力于通过设计帮助客户建立独特而持久的品牌形象。
+        </p>
+      </div>
+    </div>
+  </div>
+  <!-- Profile Back to Top (outside overlay for true fixed positioning) -->
+  <button class="profile-back-top" id="profileBackTop" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+
+  <script>
+    /* ===== PORTFOLIO DATA ===== */
+    const placeholderImgs = [
+      "https://picsum.photos/seed/brand01/800/600",
+      "https://picsum.photos/seed/brand02/800/600",
+      "https://picsum.photos/seed/brand03/800/600",
+      "https://picsum.photos/seed/brand04/800/600",
+      "https://picsum.photos/seed/brand05/800/600",
+      "https://picsum.photos/seed/brand06/800/600",
+      "https://picsum.photos/seed/brand07/800/600",
+      "https://picsum.photos/seed/brand08/800/600",
+      "https://picsum.photos/seed/brand09/800/600",
+      "https://picsum.photos/seed/brand10/800/600",
+      "https://picsum.photos/seed/brand11/800/600",
+      "https://picsum.photos/seed/brand12/800/600",
+      "https://picsum.photos/seed/brand13/800/600",
+      "https://picsum.photos/seed/brand14/800/600",
+      "https://picsum.photos/seed/brand15/800/600",
+      "https://picsum.photos/seed/brand16/800/600"
+    ];
+
+    const works = [
+      { id:1, title:"OBEE欧比企业VIS系统", category:"vi", categoryName:"标志VI", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[0],
+        desc:"为OBEE欧比企业打造全套视觉识别系统，从品牌标志、标准色、辅助图形到应用规范，构建统一而富有辨识度的品牌形象。设计以简洁几何为基础，传递科技感与专业度。",
+        client:"OBEE欧比科技", year:"2025", scope:"品牌标志 / VI系统 / 应用规范" },
+      { id:2, title:"BBG白天鹅系列包装", category:"packaging", categoryName:"包装设计", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[1],
+        desc:"BBG白天鹅系列产品包装设计，以优雅的天鹅形态为视觉核心，结合精致的排版与材质工艺，呈现高端美妆品牌的质感与格调。",
+        client:"BBG美妆", year:"2025", scope:"包装设计 / 视觉系统 / 印刷工艺" },
+      { id:3, title:"Xresort星度假酒店VI", category:"vi", categoryName:"标志VI", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[2],
+        desc:"Xresort星度假酒店品牌视觉设计，以星辰为灵感元素，融合东方美学与现代设计语言，营造奢华而宁静的品牌氛围。",
+        client:"Xresort酒店集团", year:"2024", scope:"品牌标志 / VI系统 / 导视系统" },
+      { id:4, title:"MYCUTE湿厕纸包装设计", category:"packaging", categoryName:"包装设计", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[3],
+        desc:"MYCUTE品牌湿厕纸产品包装设计，以可爱而不失品质的视觉风格，在日用品市场中脱颖而出，兼顾家庭用户的审美与信任感。",
+        client:"MYCUTE", year:"2025", scope:"包装设计 / 插画 / 系列化设计" },
+      { id:5, title:"HIBABY柔纸巾包装", category:"packaging", categoryName:"包装设计", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[4],
+        desc:"HIBABY柔纸巾系列产品包装，以柔和的色彩与亲子的温馨感为核心，打造母婴级品质的视觉体验。",
+        client:"HIBABY", year:"2025", scope:"包装设计 / 品牌视觉 / 系列产品" },
+      { id:6, title:"国网电宝IP品牌设计", category:"other", categoryName:"其他", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[5],
+        desc:"为国网电宝打造专属IP形象，以可爱的能源精灵为原型，融合品牌属性与用户情感连接，提升品牌亲和力。",
+        client:"国家电网", year:"2024", scope:"IP设计 / 品牌形象 / 衍生品" },
+      { id:7, title:"岭南水务VI设计", category:"vi", categoryName:"标志VI", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[6],
+        desc:"岭南水务集团视觉识别系统设计，以水流为设计元素，体现企业的专业性与社会责任感，构建公共事业品牌的新形象。",
+        client:"岭南水务", year:"2024", scope:"品牌标志 / VI系统 / 应用设计" },
+      { id:8, title:"MYCUTE品牌形象全案", category:"vi", categoryName:"标志VI", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[7],
+        desc:"MYCUTE品牌全案设计，从品牌策略、标志设计到完整VI系统，打造年轻、可爱、可信赖的日用品品牌形象。",
+        client:"MYCUTE", year:"2025", scope:"品牌策略 / 标志设计 / VI系统" },
+      { id:9, title:"HIBABY棉柔巾包装设计", category:"packaging", categoryName:"包装设计", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[8],
+        desc:"HIBABY棉柔巾产品包装升级设计，以纯净、柔软的视觉语言传递产品的高品质与安全性。",
+        client:"HIBABY", year:"2025", scope:"包装设计 / 产品摄影 / 视觉升级" },
+      { id:10, title:"STAR产品包装设计", category:"packaging", categoryName:"包装设计", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[9],
+        desc:"STAR系列产品包装设计，以星空为灵感，运用深邃的蓝色与金色点缀，营造神秘而高端的产品气质。",
+        client:"STAR品牌", year:"2024", scope:"包装设计 / 系列化 / 印刷工艺" },
+      { id:11, title:"年度品牌画册设计", category:"catalog", categoryName:"画册视觉", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[10],
+        desc:"企业年度品牌画册设计，以精致的排版、高质量的图片与专业的文案，全面展示品牌年度成就与愿景。",
+        client:"某上市企业", year:"2025", scope:"画册设计 / 排版 / 印刷监制" },
+      { id:12, title:"产品画册视觉设计", category:"catalog", categoryName:"画册视觉", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[11],
+        desc:"产品画册视觉设计项目，通过精心的图片选择、版式设计与色彩搭配，提升产品的视觉表现力与说服力。",
+        client:"某科技公司", year:"2024", scope:"画册设计 / 产品摄影 / 视觉设计" },
+      { id:13, title:"极简海报设计", category:"other", categoryName:"其他", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[12],
+        desc:"极简主义风格海报设计系列，以少即是多的理念，通过精准的排版与留白，传达强烈的视觉冲击力。",
+        client:"设计创作", year:"2025", scope:"海报设计 / 视觉传达" },
+      { id:14, title:"HIBABY品牌全案", category:"vi", categoryName:"标志VI", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[13],
+        desc:"HIBABY品牌全案设计，从品牌命名、标志设计到完整视觉系统，构建专业、可信赖的母婴品牌。",
+        client:"HIBABY", year:"2025", scope:"品牌命名 / 标志设计 / VI系统 / 包装设计" },
+      { id:15, title:"展览图录设计", category:"catalog", categoryName:"画册视觉", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[14],
+        desc:"艺术展览图录设计，以优雅的版式与高质量的印刷工艺，为展览作品提供完美的呈现载体。",
+        client:"某美术馆", year:"2024", scope:"图录设计 / 排版 / 印刷监制" },
+      { id:16, title:"JSK智能手环包装", category:"packaging", categoryName:"包装设计", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[15],
+        desc:"JSK智能手环产品包装设计，以科技感与运动活力为设计方向，吸引年轻消费群体。",
+        client:"JSK科技", year:"2025", scope:"包装设计 / 结构设计 / 视觉系统" }
+    ];
+
+    /* ===== CARD TEMPLATE ===== */
+    const fallbackSvg = (title) => `data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(title)}%3C/text%3E%3C/svg%3E`;
+
+    function createCardHTML(w, i) {
+      return `<article class="portfolio-card" data-component="work-card" data-category="${w.category}" data-index="${i}" style="transition-delay:${(i % 8) * 0.06}s">
+          <div style="display:block;text-decoration:none;color:inherit;height:100%;width:100%;cursor:pointer" onclick="openDetail(${i})">
+            <div class="card-image-wrapper">
+              <img src="${w.img}" alt="${w.title}" class="card-image" loading="lazy" onerror="this.src='${fallbackSvg(w.title)}'">
+              <div class="card-overlay">
+                <span class="card-category">${w.categoryName}</span>
+                <h3 class="card-title">${w.title}</h3>
+              </div>
+              <div class="card-arrow">
+                <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </div>
+        </article>`;
+    }
+
+    /* ===== RENDER CARDS ===== */
+    const grid = document.getElementById('masonryGrid');
+    grid.innerHTML = works.map((w, i) => createCardHTML(w, i)).join('');
+
+    /* ===== OVERLAY SCROLL HELPER ===== */
+    function setupOverlayScroll(overlayEl, backTopEl) {
+      let overlayTicking = false;
+      overlayEl.addEventListener('scroll', () => {
+        if (!overlayTicking) {
+          requestAnimationFrame(() => {
+            backTopEl.classList.toggle('visible', overlayEl.scrollTop > 300);
+            overlayTicking = false;
+          });
+        }
+      }, { passive: true });
+      backTopEl.addEventListener('click', () => {
+        overlayEl.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+
+    /* ===== DETAIL PAGE ===== */
+    const detailOverlay = document.getElementById('detailOverlay');
+    const detailContent = document.getElementById('detailContent');
+    const detailClose = document.getElementById('detailClose');
+
+    function openDetail(index) {
+      const w = works[index];
+
+      // Find adjacent works in the same category
+      const sameCat = works.map((r, i) => ({ ...r, origIndex: i })).filter((r, i) => r.category === w.category);
+      const catPos = sameCat.findIndex(r => r.origIndex === index);
+      const related = [];
+      // Pick neighbors: previous first, then next, alternating
+      for (let d = 1; d < sameCat.length && related.length < 3; d++) {
+        if (catPos - d >= 0) related.push(sameCat[catPos - d]);
+        if (related.length < 3 && catPos + d < sameCat.length) related.push(sameCat[catPos + d]);
+      }
+      // Fill remaining from other categories if needed
+      if (related.length < 3) {
+        const others = works.filter((r, i) => i !== index && r.category !== w.category);
+        while (related.length < 3 && others.length > 0) {
+          related.push({ ...others.shift(), origIndex: works.indexOf(others[0]) });
+        }
+      }
+
+      // Build gallery with varied layout
+      const galleryImgs = [w.img, ...placeholderImgs.filter(p => p !== w.img).slice(0, 5)];
+
+      detailContent.innerHTML = `
+        <div class="detail-header">
+          <div class="detail-category">${w.categoryName}</div>
+          <h1 class="detail-title">${w.title}</h1>
+          <p class="detail-desc">${w.desc}</p>
+          <div class="detail-meta">
+            <div class="detail-meta-item">
+              <span class="detail-meta-label">客户</span>
+              <span class="detail-meta-value">${w.client}</span>
+            </div>
+            <div class="detail-meta-item">
+              <span class="detail-meta-label">年份</span>
+              <span class="detail-meta-value">${w.year}</span>
+            </div>
+            <div class="detail-meta-item">
+              <span class="detail-meta-label">服务范围</span>
+              <span class="detail-meta-value">${w.scope}</span>
+            </div>
+          </div>
+        </div>
+        <div class="detail-gallery">
+          ${galleryImgs.slice(0, 5).map((img, gi) => `
+            <img src="${img}" alt="${w.title} - ${gi + 1}" class="detail-gallery-img" style="aspect-ratio:16/9" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221200%22 height=%22675%22%3E%3Crect fill=%22%23111%22 width=%221200%22 height=%22675%22/%3E%3Ctext x=%22600%22 y=%22337%22 font-family=%22sans-serif%22 font-size=%2224%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(w.title)}%3C/text%3E%3C/svg%3E'">
+          `).join('')}
+        </div>
+        <div class="detail-related">
+          <div class="detail-related-title">相关作品</div>
+          <div class="detail-related-grid">
+            ${related.map((r, ri) => `
+              <div class="detail-related-card" onclick="openDetail(${r.origIndex})">
+                <img src="${r.img}" alt="${r.title}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(r.title)}%3C/text%3E%3C/svg%3E'">
+                <div class="related-info">
+                  <div class="related-title">${r.title}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      detailOverlay.classList.add('active');
+      detailOverlay.scrollTop = 0;
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeDetail() {
+      detailOverlay.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    detailClose.addEventListener('click', closeDetail);
+
+    // Back to top button
+    setupOverlayScroll(detailOverlay, document.getElementById('detailBackTop'));
+
+    /* ===== PARTICLE SYSTEM ===== */
+    class ParticleEngine {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.mouse = { x: -1000, y: -1000 };
+        this.clickWaves = [];
+        this.particles = [];
+        this.connections = [];
+        this.time = 0;
+
+        this.resize();
+        this.init();
+        this.bind();
+        this.loop();
+      }
+
+      resize() {
+        this.w = this.canvas.width = window.innerWidth;
+        this.h = this.canvas.height = window.innerHeight;
+      }
+
+      init() {
+        const count = Math.min(300, Math.floor((this.w * this.h) / 4500));
+        this.particles = [];
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = Math.random() * 0.3 + 0.15;
+          this.particles.push({
+            x: Math.random() * this.w,
+            y: Math.random() * this.h,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 2 + 0.6,
+            alpha: Math.random() * 0.6 + 0.3,
+            pulse: Math.random() * Math.PI * 2,
+            pulseSpeed: Math.random() * 0.03 + 0.01,
+            baseSpeed: speed
+          });
+        }
+      }
+
+      bind() {
+        window.addEventListener('resize', () => { this.resize(); this.init(); });
+        window.addEventListener('mousemove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
+        window.addEventListener('mouseleave', () => { this.mouse.x = -1000; this.mouse.y = -1000; });
+        window.addEventListener('click', e => {
+          this.clickWaves.push({ x: e.clientX, y: e.clientY, r: 0, maxR: 300, alpha: 0.6 });
+        });
+      }
+
+      loop() {
+        this.time += 0.01;
+        this.ctx.clearRect(0, 0, this.w, this.h);
+
+        // Update & draw click waves
+        this.clickWaves = this.clickWaves.filter(w => {
+          w.r += 4;
+          w.alpha *= 0.96;
+          if (w.alpha < 0.01) return false;
+          this.ctx.beginPath();
+          this.ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2);
+          this.ctx.strokeStyle = `rgba(255,255,255,${w.alpha})`;
+          this.ctx.lineWidth = 1;
+          this.ctx.stroke();
+          return true;
+        });
+
+        // Mouse glow
+        if (this.mouse.x > 0 && this.mouse.y > 0) {
+          const grd = this.ctx.createRadialGradient(this.mouse.x, this.mouse.y, 0, this.mouse.x, this.mouse.y, 220);
+          grd.addColorStop(0, 'rgba(255,255,255,0.05)');
+          grd.addColorStop(1, 'transparent');
+          this.ctx.fillStyle = grd;
+          this.ctx.fillRect(this.mouse.x - 220, this.mouse.y - 220, 440, 440);
+        }
+
+        // Update particles
+        for (let i = 0; i < this.particles.length; i++) {
+          const p = this.particles[i];
+          p.pulse += p.pulseSpeed;
+
+          // Mouse repulsion
+          const dx = this.mouse.x - p.x;
+          const dy = this.mouse.y - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 200) {
+            const force = (200 - dist) / 200;
+            p.vx -= dx * force * 0.005;
+            p.vy -= dy * force * 0.005;
+          }
+
+          // Click wave push
+          for (const w of this.clickWaves) {
+            const cdx = p.x - w.x;
+            const cdy = p.y - w.y;
+            const cdist = Math.sqrt(cdx * cdx + cdy * cdy);
+            if (cdist < w.r + 80 && cdist > w.r - 80 && cdist > 0) {
+              const pushForce = w.alpha * 1.2;
+              p.vx += (cdx / cdist) * pushForce;
+              p.vy += (cdy / cdist) * pushForce;
+            }
+          }
+
+          // Light damping
+          p.vx *= 0.995;
+          p.vy *= 0.995;
+
+          // Enforce minimum velocity for constant floating
+          const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+          if (speed < p.baseSpeed * 0.5) {
+            const angle = Math.atan2(p.vy, p.vx);
+            p.vx = Math.cos(angle) * p.baseSpeed * 0.5;
+            p.vy = Math.sin(angle) * p.baseSpeed * 0.5;
+          }
+
+          p.x += p.vx;
+          p.y += p.vy;
+
+          // Wrap
+          if (p.x < -10) p.x = this.w + 10;
+          if (p.x > this.w + 10) p.x = -10;
+          if (p.y < -10) p.y = this.h + 10;
+          if (p.y > this.h + 10) p.y = -10;
+
+          // Draw particle
+          const pulseAlpha = p.alpha * (0.7 + 0.3 * Math.sin(p.pulse));
+          this.ctx.beginPath();
+          this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          this.ctx.fillStyle = `rgba(255,255,255,${pulseAlpha})`;
+          this.ctx.fill();
+
+          // Connections
+          for (let j = i + 1; j < this.particles.length; j++) {
+            const q = this.particles[j];
+            const ddx = q.x - p.x;
+            const ddy = q.y - p.y;
+            const d = ddx * ddx + ddy * ddy;
+            if (d < 22500) {
+              const lineAlpha = (1 - d / 22500) * 0.22;
+              this.ctx.beginPath();
+              this.ctx.moveTo(p.x, p.y);
+              this.ctx.lineTo(q.x, q.y);
+              this.ctx.strokeStyle = `rgba(255,255,255,${lineAlpha})`;
+              this.ctx.lineWidth = 0.6;
+              this.ctx.stroke();
+            }
+          }
+
+          // Mouse connections
+          if (dist < 260) {
+            const mAlpha = (1 - dist / 260) * 0.35;
+            this.ctx.beginPath();
+            this.ctx.moveTo(p.x, p.y);
+            this.ctx.lineTo(this.mouse.x, this.mouse.y);
+            this.ctx.strokeStyle = `rgba(255,255,255,${mAlpha})`;
+            this.ctx.lineWidth = 0.6;
+            this.ctx.stroke();
+          }
+        }
+
+        requestAnimationFrame(() => this.loop());
+      }
+    }
+
+    new ParticleEngine(document.getElementById('particle-canvas'));
+
+    /* ===== SCROLL HANDLER (consolidated) ===== */
+    const particleCanvas = document.getElementById('particle-canvas');
+    const mainBackTop = document.getElementById('mainBackTop');
+    const navbar = document.getElementById('navbar');
+    let lastScrollY = 0;
+    let ticking = false;
+
+    function onMainScroll() {
+      const scrollY = window.scrollY;
+      // Particle fade
+      if (scrollY <= 0) {
+        particleCanvas.style.opacity = '1';
+      } else if (scrollY >= 600) {
+        particleCanvas.style.opacity = '0';
+      } else {
+        particleCanvas.style.opacity = (1 - scrollY / 600).toString();
+      }
+      // Main back-to-top
+      mainBackTop.classList.toggle('visible', scrollY > 300);
+      // Navbar
+      navbar.classList.toggle('scrolled', scrollY > 60);
+      ticking = false;
+    }
+
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(onMainScroll);
+        ticking = true;
+      }
+    }, { passive: true });
+
+    mainBackTop.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    /* ===== FILTER (Event Delegation) ===== */
+    const filterContainer = document.querySelector('.filter-container');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+
+    function applyFilter(filter) {
+      const cards = document.querySelectorAll('.portfolio-card');
+      cards.forEach((card, i) => {
+        const show = filter === 'all' || card.dataset.category === filter;
+        if (show) {
+          card.classList.remove('hidden');
+          card.style.transitionDelay = `${i * 0.03}s`;
+          requestAnimationFrame(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0) scale(1)';
+          });
+        } else {
+          card.style.opacity = '0';
+          card.style.transform = 'translateY(20px) scale(0.95)';
+          card.style.transitionDelay = '0s';
+          setTimeout(() => card.classList.add('hidden'), 400);
+        }
+      });
+    }
+
+    filterContainer.addEventListener('click', (e) => {
+      const btn = e.target.closest('.filter-btn');
+      if (!btn) return;
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyFilter(btn.dataset.filter);
+    });
+
+    /* ===== SCROLL REVEAL ===== */
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.portfolio-card').forEach(card => revealObserver.observe(card));
+
+    /* ===== CLICK RIPPLE ===== */
+    document.addEventListener('click', e => {
+      const x = e.clientX;
+      const y = e.clientY;
+      const ripple = document.createElement('div');
+      ripple.className = 'click-ripple';
+      ripple.style.left = `${x - 40}px`;
+      ripple.style.top = `${y - 40}px`;
+      ripple.style.width = ripple.style.height = '80px';
+      document.body.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 1100);
+    });
+
+    /* ===== CONTACT PAGE ===== */
+    const contactOverlay = document.getElementById('contactOverlay');
+    const contactClose = document.getElementById('contactClose');
+
+    function openContact() {
+      contactOverlay.classList.add('active');
+      contactOverlay.scrollTop = 0;
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeContact() {
+      contactOverlay.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    contactClose.addEventListener('click', closeContact);
+
+    // Contact back to top button
+    setupOverlayScroll(contactOverlay, document.getElementById('contactBackTop'));
+
+    /* ===== PROFILE PAGE ===== */
+    const profileOverlay = document.getElementById('profileOverlay');
+    const profileClose = document.getElementById('profileClose');
+
+    function openProfile() {
+      profileOverlay.classList.add('active');
+      profileOverlay.scrollTop = 0;
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeProfile() {
+      profileOverlay.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    profileClose.addEventListener('click', closeProfile);
+
+    // Profile back to top button
+    setupOverlayScroll(profileOverlay, document.getElementById('profileBackTop'));
+
+    // Consolidated Escape key handler for all overlays
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (detailOverlay.classList.contains('active')) closeDetail();
+      else if (contactOverlay.classList.contains('active')) closeContact();
+      else if (profileOverlay.classList.contains('active')) closeProfile();
+    });
+  </script>
+</body>
+</html>
