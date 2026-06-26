@@ -102,6 +102,29 @@
     .error-msg.show {
       display: block;
     }
+    
+    .token-hint {
+      font-size: 12px;
+      color: #555;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+    
+    .token-hint a {
+      color: #888;
+      text-decoration: underline;
+    }
+    
+    .stored-token-notice {
+      font-size: 12px;
+      color: #4a9;
+      margin-top: 8px;
+      display: none;
+    }
+    
+    .stored-token-notice.show {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -110,6 +133,16 @@
     <p class="login-subtitle">请输入编辑密码</p>
     
     <form id="loginForm">
+      <div class="form-group" id="tokenGroup" style="display:none;">
+        <label class="form-label">GitHub Token</label>
+        <input type="password" class="form-input" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
+        <p class="token-hint">
+          首次登录需要填写 Token。<a href="https://github.com/settings/tokens/new" target="_blank">创建 Token →</a>
+          <br>权限勾选 <code>repo</code>，Expiration 选 <code>No expiration</code>
+        </p>
+        <p class="stored-token-notice" id="storedNotice">✓ Token 已保存，下次只需密码</p>
+      </div>
+      
       <div class="form-group">
         <label class="form-label">编辑密码</label>
         <input type="password" class="form-input" id="editorPassword" placeholder="输入编辑密码" required>
@@ -122,16 +155,32 @@
   </div>
 
   <script>
-    // 硬编码的 GitHub 凭据
+    // GitHub 配置（公开信息）
     const GITHUB_USER = 'shaoxiaodao';
     const GITHUB_REPO = 'portfolio';
-    const GITHUB_TOKEN = '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';
     const EDITOR_PASSWORD = '123456';
+    
+    // 从 localStorage 读取已保存的 Token
+    const savedToken = localStorage.getItem('shaohua_github_token');
+    
+    const tokenGroup = document.getElementById('tokenGroup');
+    const tokenInput = document.getElementById('githubToken');
+    const storedNotice = document.getElementById('storedNotice');
+    
+    // 如果有保存的 Token，隐藏 Token 输入框
+    if (savedToken) {
+      tokenInput.value = savedToken;
+      storedNotice.classList.add('show');
+    } else {
+      // 首次登录，显示 Token 输入框
+      tokenGroup.style.display = 'block';
+    }
     
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       
       const password = document.getElementById('editorPassword').value;
+      const token = document.getElementById('githubToken').value.trim();
       const errorMsg = document.getElementById('errorMsg');
       const loginBtn = document.getElementById('loginBtn');
       
@@ -144,23 +193,48 @@
         return;
       }
       
+      // 验证 Token 是否存在
+      if (!token) {
+        errorMsg.textContent = '请输入 GitHub Token';
+        errorMsg.classList.add('show');
+        tokenGroup.style.display = 'block';
+        return;
+      }
+      
       // 验证 GitHub Token
       loginBtn.disabled = true;
       loginBtn.textContent = '验证中...';
       
       try {
         const response = await fetch('https://api.github.com/user', {
-          headers: { Authorization: `token ${GITHUB_TOKEN}` }
+          headers: { Authorization: `token ${token}` }
         });
         
         if (!response.ok) {
-          throw new Error('GitHub Token 无效');
+          throw new Error('Token 无效或已失效');
         }
         
-        // 验证成功，保存凭据并跳转到编辑器
+        const userData = await response.json();
+        if (userData.login.toLowerCase() !== GITHUB_USER.toLowerCase()) {
+          throw new Error('Token 不属于 ' + GITHUB_USER);
+        }
+        
+        // 验证仓库访问权限
+        const repoResponse = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}`, {
+          headers: { Authorization: `token ${token}` }
+        });
+        
+        if (!repoResponse.ok) {
+          throw new Error('无权访问仓库 ' + GITHUB_REPO);
+        }
+        
+        // 保存 Token 到 localStorage（下次不用重复输入）
+        localStorage.setItem('shaohua_github_token', token);
+        
+        // 保存凭据到 sessionStorage（编辑器使用）
         sessionStorage.setItem('github_user', GITHUB_USER);
         sessionStorage.setItem('github_repo', GITHUB_REPO);
-        sessionStorage.setItem('github_token', GITHUB_TOKEN);
+        sessionStorage.setItem('github_token', token);
         sessionStorage.setItem('editor_auth', 'true');
         
         window.location.href = 'editor.html';
@@ -170,6 +244,12 @@
         errorMsg.classList.add('show');
         loginBtn.disabled = false;
         loginBtn.textContent = '进入编辑器';
+        
+        // Token 无效时显示 Token 输入框让用户重新输入
+        if (err.message.includes('Token')) {
+          tokenGroup.style.display = 'block';
+          localStorage.removeItem('shaohua_github_token');
+        }
       }
     });
   </script>
