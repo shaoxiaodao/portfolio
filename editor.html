@@ -3911,7 +3911,7 @@
       btnLabel.textContent = '保存中...';
 
       try {
-        // Step 1: Get the current index.html from GitHub to get the SHA (base version)
+        // Step 1: Get the current index.html from GitHub (clean public base version)
         const getFileResp = await fetch(`https://api.github.com/repos/${user}/${repo}/contents/index.html`, {
           headers: {
             'Authorization': `token ${token}`,
@@ -3929,39 +3929,58 @@
         const fileData = await getFileResp.json();
         const currentSha = fileData.sha;
 
-        // Step 2: Get the current page's HTML content
-        // We build the updated index.html by taking the original source and applying editor changes
-        const pageHTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        // Step 2: Decode the base HTML from GitHub
+        const baseHTML = decodeURIComponent(escape(atob(fileData.content)));
 
-        // Remove editor-specific elements from the HTML before saving
-        // We strip out the auth check, editor toolbar, save feedback, and auto-activate code
-        // so that the saved index.html remains the public-facing version
-        let cleanHTML = pageHTML;
+        // Step 3: Parse the base HTML into a DOM for manipulation
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(baseHTML, 'text/html');
 
-        // Remove the editor toolbar HTML
-        cleanHTML = cleanHTML.replace(/\s*<!-- Editor Toolbar: Save to GitHub \+ Logout -->[\s\S]*?<\/div>\s*<!-- Save feedback toast -->[\s\S]*?<\/div>/, '');
+        // Step 4: Apply text content changes from the editor
+        let textChanges = 0;
+        document.querySelectorAll('[data-editable]').forEach(el => {
+          const key = el.getAttribute('data-editable');
+          const target = doc.querySelector('[data-editable="' + key + '"]');
+          if (target && el.innerHTML !== target.innerHTML) {
+            target.innerHTML = el.innerHTML;
+            textChanges++;
+          }
+        });
 
-        // Remove the auth check script block
-        cleanHTML = cleanHTML.replace(/\s*\/\* ===== AUTH CHECK ===== \*\/\s*\(function\(\) \{[\s\S]*?\}\)\(\);/, '');
+        // Step 5: Apply image content changes from the editor
+        let imageChanges = 0;
+        document.querySelectorAll('[data-uploadable]').forEach(el => {
+          const key = el.getAttribute('data-uploadable') + '_' + el.getAttribute('data-img-id');
+          const img = el.querySelector('img');
+          if (img && img.src && img.src.startsWith('data:')) {
+            // Find matching element in the parsed document
+            const selector = '[data-uploadable="' + el.getAttribute('data-uploadable') + '"][data-img-id="' + el.getAttribute('data-img-id') + '"]';
+            const targetContainer = doc.querySelector(selector);
+            if (targetContainer) {
+              const targetImg = targetContainer.querySelector('img');
+              if (targetImg) {
+                targetImg.src = img.src;
+                imageChanges++;
+              }
+            }
+          }
+        });
 
-        // Remove the auto-activate editor mode block
-        cleanHTML = cleanHTML.replace(/\s*\/\* ===== AUTO-ACTIVATE EDITOR MODE ===== \*\/[\s\S]*?editorIndicator\.classList\.add\('visible'\);/, '');
+        console.log('Changes detected:', textChanges, 'text,', imageChanges, 'images');
 
-        // Remove the GitHub save functionality block
-        cleanHTML = cleanHTML.replace(/\s*\/\* ===== GITHUB SAVE FUNCTIONALITY ===== \*\/[\s\S]*?<\/script>/, '\n  <\/script>');
+        // Step 6: Serialize the updated DOM back to HTML string
+        // Preserve DOCTYPE and BOM for cross-browser compatibility
+        let updatedHTML = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 
-        // Remove all editor mode HTML elements appended after the script block
-        // This includes: editor toggle button, indicator, text toolbar, image modal,
-        // text confirm modal, new project modal, sort overlay, etc.
-        cleanHTML = cleanHTML.replace(/(<\/script>)\s*<button class="editor-toggle"[\s\S]*?(?=<\/body>)/, '$1');
+        // Ensure UTF-8 BOM is present for cross-browser compatibility
+        if (updatedHTML.charCodeAt(0) !== 0xFEFF) {
+          updatedHTML = '\uFEFF' + updatedHTML;
+        }
 
-        // Restore the original title
-        cleanHTML = cleanHTML.replace('<title>编辑器 | 韶华设计</title>', '<title>韶华设计 | SHAOUHA DESIGN</title>');
-
-        // Step 3: Encode content to base64 for GitHub API
+        // Step 7: Encode content to base64 for GitHub API
         // Use chunked encoding to avoid "Maximum call stack size exceeded" with large files
         const encoder = new TextEncoder();
-        const uint8Array = encoder.encode(cleanHTML);
+        const uint8Array = encoder.encode(updatedHTML);
         let binaryString = '';
         const chunkSize = 8192;
         for (let i = 0; i < uint8Array.length; i += chunkSize) {
@@ -3970,9 +3989,9 @@
         }
         const base64Content = btoa(binaryString);
 
-        // Step 4: Commit the changes
+        // Step 8: Commit the changes
         const now = new Date();
-        const commitMessage = `Update index.html via editor - ${now.toLocaleString('zh-CN')}`;
+        const commitMessage = `Update content via editor - ${now.toLocaleString('zh-CN')}`;
 
         const commitResp = await fetch(`https://api.github.com/repos/${user}/${repo}/contents/index.html`, {
           method: 'PUT',
@@ -4003,7 +4022,7 @@
         const commitUrl = commitData.commit.html_url;
 
         showFeedback(
-          `保存成功！ <a href="${commitUrl}" target="_blank">查看提交记录 →</a>`,
+          `保存成功！(${textChanges} 文字, ${imageChanges} 图片) <a href="${commitUrl}" target="_blank">查看提交 →</a>`,
           'success',
           8000
         );
