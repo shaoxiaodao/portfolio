@@ -1366,13 +1366,14 @@
         this.mouse = { x: -1000, y: -1000 };
         this.clickWaves = [];
         this.particles = [];
-        this.connections = [];
         this.time = 0;
+        this.running = false;
 
         this.resize();
         this.init();
         this.bind();
-        this.loop();
+        // Delay start to let page render first
+        requestAnimationFrame(() => { this.running = true; this.loop(); });
       }
 
       resize() {
@@ -1381,7 +1382,8 @@
       }
 
       init() {
-        const count = Math.min(300, Math.floor((this.w * this.h) / 4500));
+        // Reduced particle count for performance
+        const count = Math.min(80, Math.floor((this.w * this.h) / 12000));
         this.particles = [];
         for (let i = 0; i < count; i++) {
           const angle = Math.random() * Math.PI * 2;
@@ -1391,10 +1393,10 @@
             y: Math.random() * this.h,
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
-            size: Math.random() * 2 + 0.6,
-            alpha: Math.random() * 0.6 + 0.3,
+            size: Math.random() * 1.5 + 0.5,
+            alpha: Math.random() * 0.4 + 0.2,
             pulse: Math.random() * Math.PI * 2,
-            pulseSpeed: Math.random() * 0.03 + 0.01,
+            pulseSpeed: Math.random() * 0.02 + 0.01,
             baseSpeed: speed
           });
         }
@@ -1410,6 +1412,7 @@
       }
 
       loop() {
+        if (!this.running) return;
         this.time += 0.01;
         this.ctx.clearRect(0, 0, this.w, this.h);
 
@@ -1496,25 +1499,25 @@
             const ddx = q.x - p.x;
             const ddy = q.y - p.y;
             const d = ddx * ddx + ddy * ddy;
-            if (d < 22500) {
-              const lineAlpha = (1 - d / 22500) * 0.22;
+            if (d < 14400) {
+              const lineAlpha = (1 - d / 14400) * 0.15;
               this.ctx.beginPath();
               this.ctx.moveTo(p.x, p.y);
               this.ctx.lineTo(q.x, q.y);
               this.ctx.strokeStyle = `rgba(255,255,255,${lineAlpha})`;
-              this.ctx.lineWidth = 0.6;
+              this.ctx.lineWidth = 0.5;
               this.ctx.stroke();
             }
           }
 
           // Mouse connections
-          if (dist < 260) {
-            const mAlpha = (1 - dist / 260) * 0.35;
+          if (dist < 200) {
+            const mAlpha = (1 - dist / 200) * 0.25;
             this.ctx.beginPath();
             this.ctx.moveTo(p.x, p.y);
             this.ctx.lineTo(this.mouse.x, this.mouse.y);
             this.ctx.strokeStyle = `rgba(255,255,255,${mAlpha})`;
-            this.ctx.lineWidth = 0.6;
+            this.ctx.lineWidth = 0.5;
             this.ctx.stroke();
           }
         }
