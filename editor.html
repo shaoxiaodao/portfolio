@@ -3945,7 +3945,7 @@
         cleanHTML = cleanHTML.replace(/\s*\/\* ===== AUTO-ACTIVATE EDITOR MODE ===== \*\/[\s\S]*?editorIndicator\.classList\.add\('visible'\);/, '');
 
         // Remove the GitHub save functionality block
-        cleanHTML = cleanHTML.replace(/\s*\/\* ===== GITHUB SAVE FUNCTIONALITY ===== \*\/[\s\S]*?<\/script>/, '\n  </script>');
+        cleanHTML = cleanHTML.replace(/\s*\/\* ===== GITHUB SAVE FUNCTIONALITY ===== \*\/[\s\S]*?<\/script>/, '\n  <\/script>');
 
         // Restore the original title
         cleanHTML = cleanHTML.replace('<title>编辑器 | 韶华设计</title>', '<title>韶华设计 | SHAOUHA DESIGN</title>');
