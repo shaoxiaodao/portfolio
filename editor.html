@@ -3662,7 +3662,7 @@
       sortDragIdx = parseInt(this.dataset.sortIdx);
       this.classList.add('sort-dragging');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', sortDragIdx);
+      e.dataTransfer.setData('text/plain', String(sortDragIdx));
     }
 
     function onSortDragEnd() {
@@ -3758,8 +3758,9 @@
       e.preventDefault();
       clearSqueezeClasses();
       const dropIdx = parseInt(this.dataset.sortIdx);
-      // Read drag source index from dataTransfer for robustness against event ordering
-      const dragIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      // Read drag source index from dataTransfer, fallback to sortDragIdx
+      const dragIdxStr = e.dataTransfer.getData('text/plain');
+      const dragIdx = dragIdxStr ? parseInt(dragIdxStr) : sortDragIdx;
       if (!isNaN(dragIdx) && !isNaN(dropIdx) && dragIdx !== dropIdx) {
         const moved = sortWorks.splice(dragIdx, 1)[0];
         sortWorks.splice(dropIdx, 0, moved);
