@@ -3950,6 +3950,11 @@
         // Remove the GitHub save functionality block
         cleanHTML = cleanHTML.replace(/\s*\/\* ===== GITHUB SAVE FUNCTIONALITY ===== \*\/[\s\S]*?<\/script>/, '\n  <\/script>');
 
+        // Remove all editor mode HTML elements appended after </script>
+        // This includes: editor toggle button, indicator, text toolbar, image modal,
+        // text confirm modal, new project modal, sort overlay, etc.
+        cleanHTML = cleanHTML.replace(/(<\/script>)\s*<button class="editor-toggle"[\s\S]*?(?=<\/body>)/, '$1');
+
         // Restore the original title
         cleanHTML = cleanHTML.replace('<title>编辑器 | 韶华设计</title>', '<title>韶华设计 | SHAOUHA DESIGN</title>');
 
