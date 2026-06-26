@@ -3758,8 +3758,10 @@
       e.preventDefault();
       clearSqueezeClasses();
       const dropIdx = parseInt(this.dataset.sortIdx);
-      if (sortDragIdx !== null && sortDragIdx !== dropIdx) {
-        const moved = sortWorks.splice(sortDragIdx, 1)[0];
+      // Read drag source index from dataTransfer for robustness against event ordering
+      const dragIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      if (!isNaN(dragIdx) && !isNaN(dropIdx) && dragIdx !== dropIdx) {
+        const moved = sortWorks.splice(dragIdx, 1)[0];
         sortWorks.splice(dropIdx, 0, moved);
         renderSortGrid();
       }
