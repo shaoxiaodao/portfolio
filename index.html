@@ -2029,33 +2029,33 @@
     }
   </style>
 </head>
-<body class="editor-mode">
+<body class="">
   <canvas id="particle-canvas" width="2021" height="967" style="opacity: 0;"></canvas>
 
   <nav id="navbar" data-component="navbar" class="scrolled">
-    <a href="#top" class="brand" data-editable="brand" onclick="if(editorMode){event.preventDefault();return false;}"><span class="brand-en">SHAOHUA</span><span class="brand-cn">韶华</span></a>
+    <a href="#top" class="brand" data-editable="brand" onclick="if(editorMode){event.preventDefault();return false;}" contenteditable="false"><span class="brand-en">SHAOHUA</span><span class="brand-cn">韶华</span></a>
     <ul class="nav-links">
-      <li><a href="#works" data-editable="nav-works" onclick="if(editorMode){event.preventDefault();return false;}">作品</a></li>
-      <li><a href="javascript:void(0)" onclick="openProfile()" data-editable="nav-profile">简介</a></li>
-      <li><a href="javascript:void(0)" onclick="openContact()" data-editable="nav-contact">联系</a></li>
+      <li><a href="#works" data-editable="nav-works" onclick="if(editorMode){event.preventDefault();return false;}" contenteditable="false">作品</a></li>
+      <li><a href="javascript:void(0)" onclick="openProfile()" data-editable="nav-profile" contenteditable="false">简介</a></li>
+      <li><a href="javascript:void(0)" onclick="openContact()" data-editable="nav-contact" contenteditable="false">联系</a></li>
     </ul>
   </nav>
 
   <main id="top">
     <section class="hero" data-component="hero">
-      <p class="hero-label" data-editable="hero-label">Portfolio Showcase</p>
-      <h1 class="hero-title" data-editable="hero-title">SHAOHUA DESIGN</h1>
-      <p class="hero-subtitle" data-editable="hero-subtitle">品牌视觉 · 画册设计 · 包装创意 · 多元表达</p>
+      <p class="hero-label" data-editable="hero-label" contenteditable="false">Portfolio Showcase</p>
+      <h1 class="hero-title" data-editable="hero-title" contenteditable="false">SHAOHUA DESIGN</h1>
+      <p class="hero-subtitle" data-editable="hero-subtitle" contenteditable="false">品牌视觉 · 画册设计 · 包装创意 · 多元表达</p>
       <div class="hero-line"></div>
     </section>
 
     <section class="filter-section" id="works" data-component="filter">
       <div class="filter-container">
-        <button class="filter-btn active" data-filter="all" data-editable="filter-all">全部</button>
+        <button class="filter-btn active" data-filter="all" data-editable="filter-all" contenteditable="false">全部</button>
         <button class="filter-btn" data-filter="vi" data-editable="filter-vi" contenteditable="false">标志VI</button>
-        <button class="filter-btn" data-filter="catalog" data-editable="filter-catalog">画册视觉</button>
-        <button class="filter-btn" data-filter="packaging" data-editable="filter-packaging">包装设计</button>
-        <button class="filter-btn" data-filter="other" data-editable="filter-other">其他</button>
+        <button class="filter-btn" data-filter="catalog" data-editable="filter-catalog" contenteditable="false">画册视觉</button>
+        <button class="filter-btn" data-filter="packaging" data-editable="filter-packaging" contenteditable="false">包装设计</button>
+        <button class="filter-btn" data-filter="other" data-editable="filter-other" contenteditable="false">其他</button>
         <button class="add-project-btn" id="addProjectBtn">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span>添加新项目</span>
@@ -2074,8 +2074,8 @@
               <img src="https://picsum.photos/seed/brand01/800/600" alt="OBEE欧比企业VIS系统" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3EOBEE%E6%AC%A7%E6%AF%94%E4%BC%81%E4%B8%9AVIS%E7%B3%BB%E7%BB%9F%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-0">标志VI</span>
-                <h3 class="card-title" data-editable="title-0">OBEE欧比企业VIS系统</h3>
+                <span class="card-category" data-editable="cat-0" contenteditable="false">标志VI</span>
+                <h3 class="card-title" data-editable="title-0" contenteditable="false">OBEE欧比企业VIS系统</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2088,8 +2088,8 @@
               <img src="https://picsum.photos/seed/brand02/800/600" alt="BBG白天鹅系列包装" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3EBBG%E7%99%BD%E5%A4%A9%E9%B9%85%E7%B3%BB%E5%88%97%E5%8C%85%E8%A3%85%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-1">包装设计</span>
-                <h3 class="card-title" data-editable="title-1">BBG白天鹅系列包装</h3>
+                <span class="card-category" data-editable="cat-1" contenteditable="false">包装设计</span>
+                <h3 class="card-title" data-editable="title-1" contenteditable="false">BBG白天鹅系列包装</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2102,8 +2102,8 @@
               <img src="https://picsum.photos/seed/brand03/800/600" alt="Xresort星度假酒店VI" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3EXresort%E6%98%9F%E5%BA%A6%E5%81%87%E9%85%92%E5%BA%97VI%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-2">标志VI</span>
-                <h3 class="card-title" data-editable="title-2">Xresort星度假酒店VI</h3>
+                <span class="card-category" data-editable="cat-2" contenteditable="false">标志VI</span>
+                <h3 class="card-title" data-editable="title-2" contenteditable="false">Xresort星度假酒店VI</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2116,8 +2116,8 @@
               <img src="https://picsum.photos/seed/brand04/800/600" alt="MYCUTE湿厕纸包装设计" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3EMYCUTE%E6%B9%BF%E5%8E%95%E7%BA%B8%E5%8C%85%E8%A3%85%E8%AE%BE%E8%AE%A1%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-3">包装设计</span>
-                <h3 class="card-title" data-editable="title-3">MYCUTE湿厕纸包装设计</h3>
+                <span class="card-category" data-editable="cat-3" contenteditable="false">包装设计</span>
+                <h3 class="card-title" data-editable="title-3" contenteditable="false">MYCUTE湿厕纸包装设计</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2130,8 +2130,8 @@
               <img src="https://picsum.photos/seed/brand05/800/600" alt="HIBABY柔纸巾包装" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3EHIBABY%E6%9F%94%E7%BA%B8%E5%B7%BE%E5%8C%85%E8%A3%85%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-4">包装设计</span>
-                <h3 class="card-title" data-editable="title-4">HIBABY柔纸巾包装</h3>
+                <span class="card-category" data-editable="cat-4" contenteditable="false">包装设计</span>
+                <h3 class="card-title" data-editable="title-4" contenteditable="false">HIBABY柔纸巾包装</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2144,8 +2144,8 @@
               <img src="https://picsum.photos/seed/brand06/800/600" alt="国网电宝IP品牌设计" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E%E5%9B%BD%E7%BD%91%E7%94%B5%E5%AE%9DIP%E5%93%81%E7%89%8C%E8%AE%BE%E8%AE%A1%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-5">其他</span>
-                <h3 class="card-title" data-editable="title-5">国网电宝IP品牌设计</h3>
+                <span class="card-category" data-editable="cat-5" contenteditable="false">其他</span>
+                <h3 class="card-title" data-editable="title-5" contenteditable="false">国网电宝IP品牌设计</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2158,8 +2158,8 @@
               <img src="https://picsum.photos/seed/brand07/800/600" alt="岭南水务VI设计" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E%E5%B2%AD%E5%8D%97%E6%B0%B4%E5%8A%A1VI%E8%AE%BE%E8%AE%A1%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-6">标志VI</span>
-                <h3 class="card-title" data-editable="title-6">岭南水务VI设计</h3>
+                <span class="card-category" data-editable="cat-6" contenteditable="false">标志VI</span>
+                <h3 class="card-title" data-editable="title-6" contenteditable="false">岭南水务VI设计</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2172,8 +2172,8 @@
               <img src="https://picsum.photos/seed/brand08/800/600" alt="MYCUTE品牌形象全案" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3EMYCUTE%E5%93%81%E7%89%8C%E5%BD%A2%E8%B1%A1%E5%85%A8%E6%A1%88%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-7">标志VI</span>
-                <h3 class="card-title" data-editable="title-7">MYCUTE品牌形象全案</h3>
+                <span class="card-category" data-editable="cat-7" contenteditable="false">标志VI</span>
+                <h3 class="card-title" data-editable="title-7" contenteditable="false">MYCUTE品牌形象全案</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2186,8 +2186,8 @@
               <img src="https://picsum.photos/seed/brand09/800/600" alt="HIBABY棉柔巾包装设计" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3EHIBABY%E6%A3%89%E6%9F%94%E5%B7%BE%E5%8C%85%E8%A3%85%E8%AE%BE%E8%AE%A1%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-8">包装设计</span>
-                <h3 class="card-title" data-editable="title-8">HIBABY棉柔巾包装设计</h3>
+                <span class="card-category" data-editable="cat-8" contenteditable="false">包装设计</span>
+                <h3 class="card-title" data-editable="title-8" contenteditable="false">HIBABY棉柔巾包装设计</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2200,8 +2200,8 @@
               <img src="https://picsum.photos/seed/brand10/800/600" alt="STAR产品包装设计" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3ESTAR%E4%BA%A7%E5%93%81%E5%8C%85%E8%A3%85%E8%AE%BE%E8%AE%A1%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-9">包装设计</span>
-                <h3 class="card-title" data-editable="title-9">STAR产品包装设计</h3>
+                <span class="card-category" data-editable="cat-9" contenteditable="false">包装设计</span>
+                <h3 class="card-title" data-editable="title-9" contenteditable="false">STAR产品包装设计</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2214,8 +2214,8 @@
               <img src="https://picsum.photos/seed/brand11/800/600" alt="年度品牌画册设计" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E%E5%B9%B4%E5%BA%A6%E5%93%81%E7%89%8C%E7%94%BB%E5%86%8C%E8%AE%BE%E8%AE%A1%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-10">画册视觉</span>
-                <h3 class="card-title" data-editable="title-10">年度品牌画册设计</h3>
+                <span class="card-category" data-editable="cat-10" contenteditable="false">画册视觉</span>
+                <h3 class="card-title" data-editable="title-10" contenteditable="false">年度品牌画册设计</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2228,8 +2228,8 @@
               <img src="https://picsum.photos/seed/brand12/800/600" alt="产品画册视觉设计" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E%E4%BA%A7%E5%93%81%E7%94%BB%E5%86%8C%E8%A7%86%E8%A7%89%E8%AE%BE%E8%AE%A1%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-11">画册视觉</span>
-                <h3 class="card-title" data-editable="title-11">产品画册视觉设计</h3>
+                <span class="card-category" data-editable="cat-11" contenteditable="false">画册视觉</span>
+                <h3 class="card-title" data-editable="title-11" contenteditable="false">产品画册视觉设计</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2242,8 +2242,8 @@
               <img src="https://picsum.photos/seed/brand13/800/600" alt="极简海报设计" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E%E6%9E%81%E7%AE%80%E6%B5%B7%E6%8A%A5%E8%AE%BE%E8%AE%A1%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-12">其他</span>
-                <h3 class="card-title" data-editable="title-12">极简海报设计</h3>
+                <span class="card-category" data-editable="cat-12" contenteditable="false">其他</span>
+                <h3 class="card-title" data-editable="title-12" contenteditable="false">极简海报设计</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2256,8 +2256,8 @@
               <img src="https://picsum.photos/seed/brand14/800/600" alt="HIBABY品牌全案" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3EHIBABY%E5%93%81%E7%89%8C%E5%85%A8%E6%A1%88%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-13">标志VI</span>
-                <h3 class="card-title" data-editable="title-13">HIBABY品牌全案</h3>
+                <span class="card-category" data-editable="cat-13" contenteditable="false">标志VI</span>
+                <h3 class="card-title" data-editable="title-13" contenteditable="false">HIBABY品牌全案</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2270,8 +2270,8 @@
               <img src="https://picsum.photos/seed/brand15/800/600" alt="展览图录设计" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E%E5%B1%95%E8%A7%88%E5%9B%BE%E5%BD%95%E8%AE%BE%E8%AE%A1%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-14">画册视觉</span>
-                <h3 class="card-title" data-editable="title-14">展览图录设计</h3>
+                <span class="card-category" data-editable="cat-14" contenteditable="false">画册视觉</span>
+                <h3 class="card-title" data-editable="title-14" contenteditable="false">展览图录设计</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2284,8 +2284,8 @@
               <img src="https://picsum.photos/seed/brand16/800/600" alt="JSK智能手环包装" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3EJSK%E6%99%BA%E8%83%BD%E6%89%8B%E7%8E%AF%E5%8C%85%E8%A3%85%3C/text%3E%3C/svg%3E'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-15">包装设计</span>
-                <h3 class="card-title" data-editable="title-15">JSK智能手环包装</h3>
+                <span class="card-category" data-editable="cat-15" contenteditable="false">包装设计</span>
+                <h3 class="card-title" data-editable="title-15" contenteditable="false">JSK智能手环包装</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -2299,8 +2299,8 @@
   <footer id="contact" data-component="footer">
     <div class="footer-inner">
       <div class="footer-left">
-        <div class="footer-brand" data-editable="footer-brand">SHAOHUA DESIGN</div>
-        <p class="footer-copy" data-editable="footer-copy">设计是无声的沟通，让品牌无需言语便深入人心。</p>
+        <div class="footer-brand" data-editable="footer-brand" contenteditable="false">SHAOHUA DESIGN</div>
+        <p class="footer-copy" data-editable="footer-copy" contenteditable="false">设计是无声的沟通，让品牌无需言语便深入人心。</p>
       </div>
     </div>
   </footer>
@@ -2329,21 +2329,21 @@
     </button>
     <div class="contact-layout">
       <div class="contact-left">
-        <h1 class="contact-title" data-editable="contact-title">联系我们</h1>
-        <div class="contact-title-en" data-editable="contact-title-en">CONTACT US</div>
+        <h1 class="contact-title" data-editable="contact-title" contenteditable="false">联系我们</h1>
+        <div class="contact-title-en" data-editable="contact-title-en" contenteditable="false">CONTACT US</div>
       </div>
       <div class="contact-right">
         <div class="contact-info-block">
-          <div class="contact-info-label" data-editable="contact-phone-label">咨询热线</div>
-          <div class="contact-phone-main" data-editable="contact-phone-main">400-607-6071</div>
-          <div class="contact-phone-sub" data-editable="contact-phone-sub">010-62576839 3913</div>
+          <div class="contact-info-label" data-editable="contact-phone-label" contenteditable="false">咨询热线</div>
+          <div class="contact-phone-main" data-editable="contact-phone-main" contenteditable="false">400-607-6071</div>
+          <div class="contact-phone-sub" data-editable="contact-phone-sub" contenteditable="false">010-62576839 3913</div>
         </div>
         <div class="contact-info-block">
-          <div class="contact-info-label" data-editable="contact-email-label">EMAIL</div>
-          <a href="mailto:k5@drafoon.com" class="contact-email-value" data-editable="contact-email-value">k5@drafoon.com</a>
+          <div class="contact-info-label" data-editable="contact-email-label" contenteditable="false">EMAIL</div>
+          <a href="mailto:k5@drafoon.com" class="contact-email-value" data-editable="contact-email-value" contenteditable="false">k5@drafoon.com</a>
         </div>
         <div class="contact-qr-section">
-          <div class="contact-info-label" data-editable="contact-qr-label">微信</div>
+          <div class="contact-info-label" data-editable="contact-qr-label" contenteditable="false">微信</div>
           <div class="contact-qr-wrapper" data-uploadable="qr" data-img-id="wechat-qr">
             <div class="contact-qr-placeholder">微信二维码</div>
           </div>
@@ -2362,15 +2362,15 @@
       <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path></svg>
     </button>
     <div class="profile-header">
-      <h1 class="profile-title" data-editable="profile-title">简介</h1>
-      <p class="profile-subtitle" data-editable="profile-subtitle">品牌设计师 · 视觉艺术家</p>
+      <h1 class="profile-title" data-editable="profile-title" contenteditable="false">简介</h1>
+      <p class="profile-subtitle" data-editable="profile-subtitle" contenteditable="false">品牌设计师 · 视觉艺术家</p>
     </div>
     <div class="profile-content">
       <div class="profile-photo-large" data-uploadable="cover" data-img-id="portrait" style="aspect-ratio:3/4;max-width:280px;margin:0 auto 48px;">
         <img src="https://picsum.photos/seed/designer-portrait/600/800" alt="韶华" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22600%22 height=%22800%22%3E%3Crect fill=%22%23111%22 width=%22600%22 height=%22800%22/%3E%3Ctext x=%22300%22 y=%22410%22 font-family=%22sans-serif%22 font-size=%2228%22 fill=%22%23333%22 text-anchor=%22middle%22%3ESHAOHUA%3C/text%3E%3C/svg%3E'">
         <span class="upload-hint">点击替换照片</span>
       </div>
-      <div class="profile-bio" data-editable="profile-bio">
+      <div class="profile-bio" data-editable="profile-bio" contenteditable="false">
         <p>
           我是一名专注于品牌设计与视觉传达的独立设计师，拥有超过十年的设计经验。我相信优秀的设计不仅是视觉上的美感，更是品牌故事与用户情感的桥梁。
         </p>
@@ -4073,7 +4073,7 @@
       if (!match || match.length < 3) return '#f0f0f0';
       return '#' + match.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
     }
-  </script><button class="editor-toggle active" id="editorToggle" title="编辑模式"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><div class="editor-indicator visible" id="editorIndicator">编辑模式 · 点击文字修改内容，点击图片替换</div><div class="text-toolbar" id="textToolbar" style="top: 387.389px; left: 718.522px;">
+  </script><button class="editor-toggle" id="editorToggle" title="编辑模式"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><div class="editor-indicator" id="editorIndicator">编辑模式 · 点击文字修改内容，点击图片替换</div><div class="text-toolbar" id="textToolbar" style="top: 387.389px; left: 718.522px;">
       <div class="toolbar-group">
         <label>字体</label>
         <select id="tbFont">
@@ -4440,4 +4440,4 @@
           </div>
         </div>
       </div>
-        </div><div class="click-ripple" style="left: 1777px; top: 57px; height: 80px; width: 80px;"></div></body></html>
+        </div><div class="click-ripple" style="left: 1745px; top: 52px; height: 80px; width: 80px;"></div></body></html>
