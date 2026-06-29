@@ -2278,10 +2278,20 @@
       }
     } catch(e) {
       console.warn('Could not load works:', e);
-      localStorage.removeItem('shaohua_works');
+      try { localStorage.removeItem('shaohua_works'); } catch(e2) {}
     }
 
     /* ===== APPLY SAVED EDITOR DATA TO A SCOPE ===== */
+    function sanitizeHTML(html) {
+      if (typeof html !== 'string') return '';
+      return html.replace(/<script[\s\S]*?<\/script>/gi, '')
+                 .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+                 .replace(/<object[\s\S]*?<\/object>/gi, '')
+                 .replace(/<embed[^>]*>/gi, '')
+                 .replace(/<form[\s\S]*?<\/form>/gi, '')
+                 .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+    }
+
     function applySavedDataToScope(scope) {
       try {
         const raw = localStorage.getItem('shaohua_editor_data');
@@ -2291,7 +2301,7 @@
         scope.querySelectorAll('[data-editable]').forEach(el => {
           const key = el.getAttribute('data-editable');
           if (data[key]) {
-            if (data[key].text) el.innerHTML = data[key].text;
+            if (data[key].text) el.innerHTML = sanitizeHTML(data[key].text);
             if (data[key].fontFamily) el.style.fontFamily = data[key].fontFamily;
             if (data[key].fontSize) el.style.fontSize = data[key].fontSize;
             if (data[key].color) el.style.color = data[key].color;
@@ -2370,6 +2380,7 @@
     function openDetail(index) {
       if (editorMode) return; // In editor mode, don't navigate - let editor handle clicks
       const w = works[index];
+      if (!w) return; // Guard against invalid index
 
       // Find adjacent works in the same category
       const sameCat = works.map((r, i) => ({ ...r, origIndex: i })).filter((r, i) => r.category === w.category);
@@ -2382,9 +2393,9 @@
       }
       // Fill remaining from other categories if needed
       if (related.length < 3) {
-        const others = works.filter((r, i) => i !== index && r.category !== w.category);
+        const others = works.map((r, i) => ({ ...r, origIndex: i })).filter((r, i) => i !== index && r.category !== w.category);
         while (related.length < 3 && others.length > 0) {
-          related.push({ ...others.shift(), origIndex: works.indexOf(others[0]) });
+          related.push(others.shift());
         }
       }
 
@@ -2458,8 +2469,10 @@
         this.mouse = { x: -1000, y: -1000 };
         this.clickWaves = [];
         this.particles = [];
-        this.connections = [];
         this.time = 0;
+        this.rafId = null;
+        this.resizeTimer = null;
+        this.running = true;
 
         this.resize();
         this.init();
@@ -2493,15 +2506,34 @@
       }
 
       bind() {
-        window.addEventListener('resize', () => { this.resize(); this.init(); });
+        window.addEventListener('resize', () => {
+          clearTimeout(this.resizeTimer);
+          this.resizeTimer = setTimeout(() => { this.resize(); this.init(); }, 250);
+        });
         window.addEventListener('mousemove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
         window.addEventListener('mouseleave', () => { this.mouse.x = -1000; this.mouse.y = -1000; });
+        window.addEventListener('touchmove', e => {
+          if (e.touches.length > 0) { this.mouse.x = e.touches[0].clientX; this.mouse.y = e.touches[0].clientY; }
+        }, { passive: true });
+        window.addEventListener('touchend', () => { this.mouse.x = -1000; this.mouse.y = -1000; });
         window.addEventListener('click', e => {
-          this.clickWaves.push({ x: e.clientX, y: e.clientY, r: 0, maxR: 300, alpha: 0.6 });
+          if (this.clickWaves.length < 5) {
+            this.clickWaves.push({ x: e.clientX, y: e.clientY, r: 0, maxR: 300, alpha: 0.6 });
+          }
+        });
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            this.running = false;
+            if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+          } else {
+            this.running = true;
+            if (!this.rafId) this.loop();
+          }
         });
       }
 
       loop() {
+        if (!this.running) return;
         this.time += 0.01;
         this.ctx.clearRect(0, 0, this.w, this.h);
 
@@ -2588,8 +2620,8 @@
             const ddx = q.x - p.x;
             const ddy = q.y - p.y;
             const d = ddx * ddx + ddy * ddy;
-            if (d < 22500) { // 150^2 — wider connection range
-              const lineAlpha = (1 - d / 22500) * 0.22;
+            if (d < 14400) { // 120^2
+              const lineAlpha = (1 - d / 14400) * 0.22;
               this.ctx.beginPath();
               this.ctx.moveTo(p.x, p.y);
               this.ctx.lineTo(q.x, q.y);
@@ -2611,7 +2643,7 @@
           }
         }
 
-        requestAnimationFrame(() => this.loop());
+        this.rafId = requestAnimationFrame(() => this.loop());
       }
     }
 
@@ -2964,8 +2996,16 @@
       if (!editorMode) return;
       const editable = e.target.closest ? e.target.closest('[data-editable]') : null;
       if (!editable) return;
-      // Allow default paste to happen, then save
+      // Allow default paste, then sanitize
       setTimeout(() => {
+        // Strip dangerous elements from pasted content
+        editable.querySelectorAll('script, iframe, object, embed, form, link, meta').forEach(el => el.remove());
+        // Remove on* event handlers
+        editable.querySelectorAll('[onload], [onerror], [onclick], [onmouseover], [onfocus]').forEach(el => {
+          Array.from(el.attributes).forEach(attr => {
+            if (attr.name.startsWith('on')) el.removeAttribute(attr.name);
+          });
+        });
         saveEditorData();
       }, 50);
     });
@@ -3123,10 +3163,16 @@
       handleFiles(e.dataTransfer.files);
     });
 
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
     function handleFiles(files) {
       const preview = document.getElementById('imgPreview');
       for (const file of files) {
         if (!file.type.startsWith('image/')) continue;
+        if (file.size > MAX_FILE_SIZE) {
+          alert('图片 "' + file.name + '" 超过 5MB 限制，请选择较小的图片');
+          continue;
+        }
         const reader = new FileReader();
         reader.onload = (e) => {
           const dataUrl = e.target.result;
@@ -3255,7 +3301,7 @@
       if (currentUploadTarget && pendingImages.length > 0) {
         if (currentImgType === 'cover') {
           // Replace cover image
-          const img = currentUploadTarget.querySelector('img');
+          let img = currentUploadTarget.querySelector('img');
           if (img && pendingImages[0]) {
             const dataUrl = pendingImages[0];
             // Validate data URL
@@ -3270,6 +3316,21 @@
               console.error('Invalid data URL:', dataUrl.substring(0, 50));
               alert('图片数据无效，请重新上传');
               return;
+            }
+          } else if (!img && pendingImages[0]) {
+            // No existing img element (e.g., QR code placeholder) — create one
+            const dataUrl = pendingImages[0];
+            if (dataUrl.startsWith('data:image/')) {
+              img = document.createElement('img');
+              img.src = dataUrl;
+              img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
+              img.onerror = () => {
+                console.error('Failed to load uploaded image');
+              };
+              // Remove placeholder text if any
+              const placeholder = currentUploadTarget.querySelector('.contact-qr-placeholder');
+              if (placeholder) placeholder.remove();
+              currentUploadTarget.appendChild(img);
             }
           } else if (!img) {
             console.error('Image element not found in upload target');
@@ -3311,6 +3372,42 @@
         document.getElementById('imgUploadModal').classList.remove('visible');
         pendingImages = [];
         currentImgType = '';
+      }
+    });
+
+    // Escape key closes all editor modals
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !editorMode) return;
+      // Close sort overlay
+      if (sortOverlay && sortOverlay.classList.contains('visible')) {
+        closeSortOverlay();
+        return;
+      }
+      // Close image upload modal
+      const imgModal = document.getElementById('imgUploadModal');
+      if (imgModal.classList.contains('visible')) {
+        imgModal.classList.remove('visible');
+        pendingImages = [];
+        currentImgType = '';
+        document.getElementById('imgFileInput').value = '';
+        return;
+      }
+      // Close text confirm modal
+      const textModal = document.getElementById('textConfirmModal');
+      if (textModal.classList.contains('visible')) {
+        if (pendingTextConfirm) {
+          pendingTextConfirm.el.textContent = pendingTextConfirm.oldText;
+          pendingTextConfirm = null;
+        }
+        textModal.classList.remove('visible');
+        return;
+      }
+      // Close new project modal
+      const npMod = document.getElementById('newProjectModal');
+      if (npMod.classList.contains('visible')) {
+        npMod.classList.remove('visible');
+        npCoverData = '';
+        return;
       }
     });
 
@@ -3423,6 +3520,11 @@
     document.getElementById('npCoverInput').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
+      if (file.size > MAX_FILE_SIZE) {
+        alert('封面图片超过 5MB 限制，请选择较小的图片');
+        e.target.value = '';
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (ev) => {
         npCoverData = ev.target.result;
@@ -3895,7 +3997,11 @@
 
     function hideFeedback() { saveFeedback.classList.remove('visible'); }
 
+    let isSaving = false;
+
     githubSaveBtn.addEventListener('click', async () => {
+      if (isSaving) return; // Prevent double-click save
+
       const user = sessionStorage.getItem('github_user');
       const repo = sessionStorage.getItem('github_repo');
       const token = sessionStorage.getItem('github_token');
@@ -3905,6 +4011,7 @@
         return;
       }
 
+      isSaving = true;
       githubSaveBtn.classList.add('saving');
       const btnLabel = githubSaveBtn.querySelector('.btn-label');
       const origLabel = btnLabel.textContent;
@@ -3973,8 +4080,53 @@
 
         console.log('Changes detected:', textChanges, 'text,', imageChanges, 'images');
 
+        // Step 5b: Inject updated works array and editor data for public visitors
+        // This ensures new projects and card edits persist beyond localStorage
+        const worksJson = JSON.stringify(works);
+        const editorDataJson = JSON.stringify(
+          (() => {
+            const data = {};
+            document.querySelectorAll('[data-editable]').forEach(el => {
+              const key = el.getAttribute('data-editable');
+              data[key] = {
+                text: el.innerHTML,
+                fontFamily: el.style.fontFamily || '',
+                fontSize: el.style.fontSize || '',
+                color: el.style.color || ''
+              };
+            });
+            document.querySelectorAll('[data-uploadable]').forEach(el => {
+              const key = el.getAttribute('data-uploadable') + '_img_' + el.getAttribute('data-img-id');
+              const img = el.querySelector('img');
+              if (img && img.src && img.src.startsWith('data:')) {
+                data[key] = img.src;
+              }
+            });
+            return data;
+          })()
+        );
+        const overrideScript = '\n    /* === EDITOR SYNC (auto-generated) === */\n' +
+          '    try {\n' +
+          '      var _ew = ' + worksJson + ';\n' +
+          '      localStorage.setItem("shaohua_works", JSON.stringify(_ew));\n' +
+          '      localStorage.setItem("shaohua_editor_data", ' + JSON.stringify(editorDataJson) + ');\n' +
+          '      var _g = document.getElementById("masonryGrid");\n' +
+          '      if (_g && typeof createCardHTML === "function") {\n' +
+          '        works.length = 0; _ew.forEach(function(w){works.push(w)});\n' +
+          '        _g.innerHTML = works.map(function(w,i){return createCardHTML(w,i)}).join("");\n' +
+          '        if (typeof applySavedDataToScope === "function") applySavedDataToScope(_g);\n' +
+          '      }\n' +
+          '    } catch(e) { console.warn("Editor sync failed:", e); }\n' +
+          '    /* === END EDITOR SYNC === */\n';
+
         // Step 6: Serialize the updated DOM back to HTML string
         let updatedHTML = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+
+        // Inject the works/card sync script before the last </script> tag
+        const lastScriptIdx = updatedHTML.lastIndexOf('</script>');
+        if (lastScriptIdx !== -1) {
+          updatedHTML = updatedHTML.slice(0, lastScriptIdx) + overrideScript + updatedHTML.slice(lastScriptIdx);
+        }
 
         // Add UTF-8 BOM at the very start for cross-browser compatibility
         // BOM must come BEFORE DOCTYPE to avoid DOMParser issues on next save
@@ -4034,6 +4186,7 @@
         console.error('GitHub save error:', err);
         showFeedback(`保存失败：${err.message}`, 'error', 6000);
       } finally {
+        isSaving = false;
         githubSaveBtn.classList.remove('saving');
         btnLabel.textContent = origLabel;
       }
