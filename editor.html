@@ -4122,8 +4122,8 @@
         // Step 6: Serialize the updated DOM back to HTML string
         let updatedHTML = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 
-        // Inject the works/card sync script before the last </script> tag
-        const lastScriptIdx = updatedHTML.lastIndexOf('</script>');
+        // Inject the works/card sync script before the last closing script tag
+        const lastScriptIdx = updatedHTML.lastIndexOf('<' + '/script>');
         if (lastScriptIdx !== -1) {
           updatedHTML = updatedHTML.slice(0, lastScriptIdx) + overrideScript + updatedHTML.slice(lastScriptIdx);
         }
