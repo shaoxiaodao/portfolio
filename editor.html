@@ -3906,14 +3906,30 @@
           color: el.style.color || ''
         };
       });
-      // Save images
+      // Save images (support multi-image galleries)
       let imageCount = 0;
       document.querySelectorAll('[data-uploadable]').forEach(el => {
         const key = el.getAttribute('data-uploadable') + '_img_' + el.getAttribute('data-img-id');
-        const img = el.querySelector('img');
-        if (img && img.src && img.src.startsWith('data:')) {
-          data[key] = img.src;
-          imageCount++;
+        const imgs = el.querySelectorAll('img');
+        if (imgs.length === 0) return;
+        if (imgs.length === 1) {
+          const src = imgs[0].src;
+          if (src && src.startsWith('data:')) {
+            data[key] = src;
+            imageCount++;
+          }
+        } else {
+          // Multi-image gallery: save as array
+          const srcs = [];
+          imgs.forEach(img => {
+            if (img.src && img.src.startsWith('data:')) {
+              srcs.push(img.src);
+              imageCount++;
+            }
+          });
+          if (srcs.length > 0) {
+            data[key] = JSON.stringify(srcs);
+          }
         }
       });
       try {
@@ -3951,26 +3967,53 @@
             if (data[key].color) el.style.color = data[key].color;
           }
         });
-        // Restore images
+        // Restore images (support multi-image galleries)
         let restoredCount = 0;
         document.querySelectorAll('[data-uploadable]').forEach(el => {
           const key = el.getAttribute('data-uploadable') + '_img_' + el.getAttribute('data-img-id');
-          if (data[key]) {
-            const dataUrl = data[key];
-            // Validate data URL
-            if (dataUrl && dataUrl.startsWith('data:image/')) {
-              const img = el.querySelector('img');
-              if (img) {
-                img.src = dataUrl;
-                img.onerror = () => {
-                  console.warn('Failed to load saved image for key:', key);
-                  // Don't show broken image, keep the original or show placeholder
-                  img.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2216%22 fill=%22%23666%22 text-anchor=%22middle%22%3E图片加载失败%3C/text%3E%3C/svg%3E';
-                };
-                restoredCount++;
+          if (!data[key]) return;
+          const saved = data[key];
+
+          // Check if it's a JSON array (multi-image gallery)
+          if (typeof saved === 'string' && saved.startsWith('[')) {
+            try {
+              const srcs = JSON.parse(saved);
+              if (Array.isArray(srcs) && srcs.length > 0) {
+                // Remove existing images
+                el.querySelectorAll('img').forEach(img => img.remove());
+                const hint = el.querySelector('.upload-hint');
+                srcs.forEach(src => {
+                  if (src && src.startsWith('data:image/')) {
+                    const img = document.createElement('img');
+                    img.src = src;
+                    img.className = 'detail-gallery-img';
+                    img.style.aspectRatio = '16/9';
+                    img.onerror = () => {
+                      console.warn('Failed to load saved gallery image');
+                      img.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2216%22 fill=%22%23666%22 text-anchor=%22middle%22%3E图片加载失败%3C/text%3E%3C/svg%3E';
+                    };
+                    if (hint) {
+                      el.insertBefore(img, hint);
+                    } else {
+                      el.appendChild(img);
+                    }
+                    restoredCount++;
+                  }
+                });
               }
-            } else {
-              console.warn('Invalid image data for key:', key);
+            } catch (parseErr) {
+              console.warn('Failed to parse multi-image data for key:', key);
+            }
+          } else if (typeof saved === 'string' && saved.startsWith('data:image/')) {
+            // Single image (cover, QR code, etc.)
+            const img = el.querySelector('img');
+            if (img) {
+              img.src = saved;
+              img.onerror = () => {
+                console.warn('Failed to load saved image for key:', key);
+                img.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2216%22 fill=%22%23666%22 text-anchor=%22middle%22%3E图片加载失败%3C/text%3E%3C/svg%3E';
+              };
+              restoredCount++;
             }
           }
         });
@@ -4074,22 +4117,46 @@
           }
         });
 
-        // Step 5: Apply image content changes from the editor
+        // Step 5: Apply image content changes from the editor (support multi-image galleries)
         let imageChanges = 0;
         document.querySelectorAll('[data-uploadable]').forEach(el => {
-          const key = el.getAttribute('data-uploadable') + '_' + el.getAttribute('data-img-id');
-          const img = el.querySelector('img');
-          if (img && img.src && img.src.startsWith('data:')) {
-            // Find matching element in the parsed document
-            const selector = '[data-uploadable="' + el.getAttribute('data-uploadable') + '"][data-img-id="' + el.getAttribute('data-img-id') + '"]';
-            const targetContainer = doc.querySelector(selector);
-            if (targetContainer) {
+          const uploadType = el.getAttribute('data-uploadable');
+          const imgId = el.getAttribute('data-img-id');
+          const selector = '[data-uploadable="' + uploadType + '"][data-img-id="' + imgId + '"]';
+          const targetContainer = doc.querySelector(selector);
+          if (!targetContainer) return;
+
+          const imgs = el.querySelectorAll('img');
+          if (imgs.length === 0) return;
+
+          if (imgs.length === 1) {
+            // Single image: update src
+            const img = imgs[0];
+            if (img.src && img.src.startsWith('data:')) {
               const targetImg = targetContainer.querySelector('img');
               if (targetImg) {
                 targetImg.src = img.src;
                 imageChanges++;
               }
             }
+          } else {
+            // Multi-image gallery: replace all images
+            const targetHint = targetContainer.querySelector('.upload-hint');
+            targetContainer.querySelectorAll('img').forEach(img => img.remove());
+            imgs.forEach(img => {
+              if (img.src && img.src.startsWith('data:')) {
+                const newImg = doc.createElement('img');
+                newImg.src = img.src;
+                newImg.className = 'detail-gallery-img';
+                newImg.setAttribute('style', 'aspect-ratio:16/9');
+                if (targetHint) {
+                  targetContainer.insertBefore(newImg, targetHint);
+                } else {
+                  targetContainer.appendChild(newImg);
+                }
+                imageChanges++;
+              }
+            });
           }
         });
 
@@ -4112,9 +4179,19 @@
             });
             document.querySelectorAll('[data-uploadable]').forEach(el => {
               const key = el.getAttribute('data-uploadable') + '_img_' + el.getAttribute('data-img-id');
-              const img = el.querySelector('img');
-              if (img && img.src && img.src.startsWith('data:')) {
-                data[key] = img.src;
+              const imgs = el.querySelectorAll('img');
+              if (imgs.length === 0) return;
+              if (imgs.length === 1) {
+                const img = imgs[0];
+                if (img && img.src && img.src.startsWith('data:')) {
+                  data[key] = img.src;
+                }
+              } else {
+                const srcs = [];
+                imgs.forEach(img => {
+                  if (img.src && img.src.startsWith('data:')) srcs.push(img.src);
+                });
+                if (srcs.length > 0) data[key] = JSON.stringify(srcs);
               }
             });
             return data;
