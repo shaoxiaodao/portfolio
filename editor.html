@@ -1131,6 +1131,32 @@
       opacity: 1;
     }
 
+    /* Detail gallery manage button (editor mode only) */
+    .detail-gallery-manage-btn {
+      display: none;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 5;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.15);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+    }
+    body.editor-mode .detail-gallery-manage-btn {
+      display: inline-block;
+    }
+    .detail-gallery-manage-btn:hover {
+      background: rgba(0,0,0,0.85);
+      transform: translateY(-1px);
+    }
+
     /* Floating text toolbar */
     .text-toolbar {
       position: fixed;
@@ -2449,10 +2475,11 @@
           </div>
         </div>
         <div class="detail-gallery" data-uploadable="detail" data-img-id="gallery-${index}">
+          <button class="detail-gallery-manage-btn">管理图片</button>
           ${galleryImgs.slice(0, 5).map((img, gi) => `
             <img src="${img}" alt="${w.title} - ${gi + 1}" class="detail-gallery-img" style="aspect-ratio:16/9" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221200%22 height=%22675%22%3E%3Crect fill=%22%23111%22 width=%221200%22 height=%22675%22/%3E%3Ctext x=%22600%22 y=%22337%22 font-family=%22sans-serif%22 font-size=%2224%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(w.title)}%3C/text%3E%3C/svg%3E'">
           `).join('')}
-          <span class="upload-hint">点击替换详情图</span>
+          <span class="upload-hint">点击图片单独替换，或点击「管理图片」批量编辑</span>
         </div>
         <div class="detail-related">
           <div class="detail-related-title">相关作品</div>
@@ -2947,9 +2974,33 @@
         showTextToolbar(editable);
         return;
       }
-      // Click on uploadable image
+      // Click on individual detail gallery image → replace just that one
+      const galleryImg = e.target.closest('.detail-gallery-img');
+      if (galleryImg) {
+        const gallery = galleryImg.closest('[data-uploadable="detail"]');
+        if (gallery) {
+          e.preventDefault();
+          e.stopPropagation();
+          currentUploadTarget = gallery;
+          // Find index of clicked image
+          const allImgs = gallery.querySelectorAll('.detail-gallery-img');
+          let imgIdx = -1;
+          allImgs.forEach((img, i) => { if (img === galleryImg) imgIdx = i; });
+          openImageModal(gallery, 'detail-single', imgIdx);
+          return;
+        }
+      }
+      // Click on uploadable image (gallery container, hint, or manage button)
       const uploadable = e.target.closest('[data-uploadable]');
       if (uploadable) {
+        // If clicked on the manage-gallery button, open full gallery mode
+        if (e.target.closest('.detail-gallery-manage-btn')) {
+          e.preventDefault();
+          e.stopPropagation();
+          currentUploadTarget = uploadable;
+          openImageModal(uploadable, 'detail');
+          return;
+        }
         e.preventDefault();
         e.stopPropagation();
         currentUploadTarget = uploadable;
@@ -3143,15 +3194,17 @@
     });
 
     // Image upload modal logic
-    let currentImgType = ''; // 'cover' or 'detail'
+    let currentImgType = ''; // 'cover', 'detail', or 'detail-single'
+    let singleReplaceImgIdx = -1; // index of image being replaced in single mode
 
-    function openImageModal(target) {
+    function openImageModal(target, mode, imgIdx) {
       const modal = document.getElementById('imgUploadModal');
       const title = document.getElementById('imgModalTitle');
       const preview = document.getElementById('imgPreview');
       const hint = document.getElementById('imgReorderHint');
       const fileInput = document.getElementById('imgFileInput');
-      currentImgType = target.getAttribute('data-uploadable');
+      currentImgType = mode || target.getAttribute('data-uploadable');
+      singleReplaceImgIdx = (typeof imgIdx === 'number') ? imgIdx : -1;
 
       preview.innerHTML = '';
       pendingImages = [];
@@ -3168,12 +3221,26 @@
           pendingImages.push(img.src);
           renderPreview();
         }
+      } else if (currentImgType === 'detail-single') {
+        // Single image replace mode: replace one specific gallery image
+        title.textContent = '替换此张图片（第 ' + (singleReplaceImgIdx + 1) + ' 张）';
+        fileInput.removeAttribute('multiple');
+        hint.classList.remove('visible');
+        // Load the clicked image as preview
+        const allImgs = target.querySelectorAll('.detail-gallery-img');
+        if (singleReplaceImgIdx >= 0 && singleReplaceImgIdx < allImgs.length) {
+          const img = allImgs[singleReplaceImgIdx];
+          if (img.src) {
+            pendingImages.push(img.src);
+            renderPreview();
+          }
+        }
       } else {
         // Detail mode: multi-image upload with reorder
-        title.textContent = '替换案例详情图';
+        title.textContent = '管理案例详情图';
         fileInput.setAttribute('multiple', '');
         // Load existing gallery images
-        const existingImgs = target.querySelectorAll('img');
+        const existingImgs = target.querySelectorAll('.detail-gallery-img');
         existingImgs.forEach(img => {
           if (img.src) {
             pendingImages.push(img.src);
@@ -3229,8 +3296,8 @@
             alert('图片读取失败，请重试');
             return;
           }
-          if (currentImgType === 'cover') {
-            // Cover mode: replace with single new image
+          if (currentImgType === 'cover' || currentImgType === 'detail-single') {
+            // Single image replace mode
             pendingImages = [dataUrl];
           } else {
             // Detail mode: append to existing
@@ -3251,8 +3318,8 @@
       const hint = document.getElementById('imgReorderHint');
       preview.innerHTML = '';
 
-      if (currentImgType === 'cover') {
-        // Cover mode: single image, no drag, no index
+      if (currentImgType === 'cover' || currentImgType === 'detail-single') {
+        // Single image mode: no drag, no index
         hint.classList.remove('visible');
         if (pendingImages.length > 0) {
           const item = document.createElement('div');
@@ -3339,6 +3406,7 @@
       document.getElementById('imgUploadModal').classList.remove('visible');
       pendingImages = [];
       currentImgType = '';
+      singleReplaceImgIdx = -1;
       document.getElementById('imgFileInput').value = '';
       document.getElementById('imgReorderHint').classList.remove('visible');
     });
@@ -3382,6 +3450,23 @@
           } else if (!img) {
             console.error('Image element not found in upload target');
           }
+        } else if (currentImgType === 'detail-single') {
+          // Replace just the one clicked image
+          const container = currentUploadTarget;
+          const allImgs = container.querySelectorAll('.detail-gallery-img');
+          if (singleReplaceImgIdx >= 0 && singleReplaceImgIdx < allImgs.length && pendingImages[0]) {
+            const dataUrl = pendingImages[0];
+            if (dataUrl.startsWith('data:image/')) {
+              allImgs[singleReplaceImgIdx].src = dataUrl;
+              allImgs[singleReplaceImgIdx].onerror = () => {
+                console.error('Failed to load replaced image');
+                allImgs[singleReplaceImgIdx].src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2216%22 fill=%22%23666%22 text-anchor=%22middle%22%3E图片加载失败%3C/text%3E%3C/svg%3E';
+              };
+            } else {
+              alert('图片数据无效，请重新上传');
+              return;
+            }
+          }
         } else {
           // Replace all gallery images with reordered ones
           const container = currentUploadTarget;
@@ -3410,6 +3495,7 @@
       document.getElementById('imgUploadModal').classList.remove('visible');
       pendingImages = [];
       currentImgType = '';
+      singleReplaceImgIdx = -1;
       document.getElementById('imgFileInput').value = '';
     });
 
@@ -3419,6 +3505,7 @@
         document.getElementById('imgUploadModal').classList.remove('visible');
         pendingImages = [];
         currentImgType = '';
+        singleReplaceImgIdx = -1;
       }
     });
 
@@ -3436,6 +3523,7 @@
         imgModal.classList.remove('visible');
         pendingImages = [];
         currentImgType = '';
+        singleReplaceImgIdx = -1;
         document.getElementById('imgFileInput').value = '';
         return;
       }
