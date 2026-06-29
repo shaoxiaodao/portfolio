@@ -3930,7 +3930,12 @@
         const currentSha = fileData.sha;
 
         // Step 2: Decode the base HTML from GitHub
-        const baseHTML = decodeURIComponent(escape(atob(fileData.content)));
+        let baseHTML = decodeURIComponent(escape(atob(fileData.content)));
+
+        // Strip BOM before DOMParser — BOM as text inside <head> causes
+        // DOMParser to auto-close <head> and push <meta>/<style> into <body>
+        const hadBOM = baseHTML.charCodeAt(0) === 0xFEFF;
+        if (hadBOM) baseHTML = baseHTML.slice(1);
 
         // Step 3: Parse the base HTML into a DOM for manipulation
         const parser = new DOMParser();
@@ -3969,13 +3974,11 @@
         console.log('Changes detected:', textChanges, 'text,', imageChanges, 'images');
 
         // Step 6: Serialize the updated DOM back to HTML string
-        // Preserve DOCTYPE and BOM for cross-browser compatibility
         let updatedHTML = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 
-        // Ensure UTF-8 BOM is present for cross-browser compatibility
-        if (updatedHTML.charCodeAt(0) !== 0xFEFF) {
-          updatedHTML = '\uFEFF' + updatedHTML;
-        }
+        // Add UTF-8 BOM at the very start for cross-browser compatibility
+        // BOM must come BEFORE DOCTYPE to avoid DOMParser issues on next save
+        updatedHTML = '\uFEFF' + updatedHTML;
 
         // Step 7: Encode content to base64 for GitHub API
         // Use chunked encoding to avoid "Maximum call stack size exceeded" with large files
