@@ -1042,9 +1042,9 @@
   <canvas id="particle-canvas"></canvas>
 
   <nav id="navbar" data-component="navbar">
-    <a href="#top" class="brand" data-editable="brand" onclick="if(editorMode){event.preventDefault();return false;}"><span class="brand-en">SHAOHUA</span><span class="brand-cn">韶华</span></a>
+    <a href="#top" class="brand" data-editable="brand" onclick="if(typeof editorMode!=='undefined'&&editorMode){event.preventDefault();return false;}"><span class="brand-en">SHAOHUA</span><span class="brand-cn">韶华</span></a>
     <ul class="nav-links">
-      <li><a href="#works" data-editable="nav-works" onclick="if(editorMode){event.preventDefault();return false;}">作品</a></li>
+      <li><a href="#works" data-editable="nav-works" onclick="if(typeof editorMode!=='undefined'&&editorMode){event.preventDefault();return false;}">作品</a></li>
       <li><a href="javascript:void(0)" onclick="openProfile()" data-editable="nav-profile">简介</a></li>
       <li><a href="javascript:void(0)" onclick="openContact()" data-editable="nav-contact">联系</a></li>
     </ul>
@@ -1065,14 +1065,6 @@
         <button class="filter-btn" data-filter="catalog" data-editable="filter-catalog">画册视觉</button>
         <button class="filter-btn" data-filter="packaging" data-editable="filter-packaging">包装设计</button>
         <button class="filter-btn" data-filter="other" data-editable="filter-other">其他</button>
-        <button class="add-project-btn" id="addProjectBtn">
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>添加新项目</span>
-        </button>
-        <button class="sort-project-btn" id="sortProjectBtn">
-          <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m0 10v3a2 2 0 002 2h3M21 8V5a2 2 0 00-2-2h-3M14 17h7m-4-4l4 4-4 4M3 12h18" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>排序</span>
-        </button>
       </div>
     </section>
 
@@ -1153,7 +1145,6 @@
     <div class="profile-content">
       <div class="profile-photo-large" data-uploadable="cover" data-img-id="portrait" style="aspect-ratio:3/4;max-width:280px;margin:0 auto 48px;">
         <img src="https://picsum.photos/seed/designer-portrait/600/800" alt="韶华" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22600%22 height=%22800%22%3E%3Crect fill=%22%23111%22 width=%22600%22 height=%22800%22/%3E%3Ctext x=%22300%22 y=%22410%22 font-family=%22sans-serif%22 font-size=%2228%22 fill=%22%23333%22 text-anchor=%22middle%22%3ESHAOHUA%3C/text%3E%3C/svg%3E'">
-        <span class="upload-hint">点击替换照片</span>
       </div>
       <div class="profile-bio" data-editable="profile-bio">
         <p>
@@ -1313,7 +1304,6 @@
           <div style="display:block;text-decoration:none;color:inherit;height:100%;width:100%;cursor:pointer" onclick="openDetail(${i})">
             <div class="card-image-wrapper" data-uploadable="cover" data-img-id="card-${i}">
               <img src="${w.img}" alt="${w.title}" class="card-image" loading="lazy" onerror="this.src='${fallbackSvg(w.title)}'">
-              <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
                 <span class="card-category" data-editable="cat-${i}">${w.categoryName}</span>
                 <h3 class="card-title" data-editable="title-${i}">${w.title}</h3>
@@ -1355,7 +1345,7 @@
     const detailClose = document.getElementById('detailClose');
 
     function openDetail(index) {
-      if (editorMode) return; // In editor mode, don't navigate - let editor handle clicks
+      if (typeof editorMode !== 'undefined' && editorMode) return; // In editor mode, don't navigate - let editor handle clicks
       const w = works[index];
 
       // Find adjacent works in the same category
@@ -1402,7 +1392,6 @@
           ${galleryImgs.slice(0, 5).map((img, gi) => `
             <img src="${img}" alt="${w.title} - ${gi + 1}" class="detail-gallery-img" style="aspect-ratio:16/9" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221200%22 height=%22675%22%3E%3Crect fill=%22%23111%22 width=%221200%22 height=%22675%22/%3E%3Ctext x=%22600%22 y=%22337%22 font-family=%22sans-serif%22 font-size=%2224%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(w.title)}%3C/text%3E%3C/svg%3E'">
           `).join('')}
-          <span class="upload-hint">点击替换详情图</span>
         </div>
         <div class="detail-related">
           <div class="detail-related-title">相关作品</div>
@@ -1665,7 +1654,7 @@
 
     filterContainer.addEventListener('click', (e) => {
       const btn = e.target.closest('.filter-btn');
-      if (!btn || editorMode) return;
+      if (!btn || (typeof editorMode !== 'undefined' && editorMode)) return;
       filterBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       applyFilter(btn.dataset.filter);
@@ -1701,7 +1690,7 @@
     const contactClose = document.getElementById('contactClose');
 
     function openContact() {
-      if (editorMode) return; // Don't navigate in editor mode
+      if (typeof editorMode !== 'undefined' && editorMode) return; // Don't navigate in editor mode
       contactOverlay.classList.add('active');
       contactOverlay.scrollTop = 0;
       document.body.style.overflow = 'hidden';
@@ -1722,7 +1711,7 @@
     const profileClose = document.getElementById('profileClose');
 
     function openProfile() {
-      if (editorMode) return; // Don't navigate in editor mode
+      if (typeof editorMode !== 'undefined' && editorMode) return; // Don't navigate in editor mode
       profileOverlay.classList.add('active');
       profileOverlay.scrollTop = 0;
       document.body.style.overflow = 'hidden';
