@@ -3698,6 +3698,7 @@
     }
 
     function saveSortOrder() {
+      console.log('[Sort] saveSortOrder called, sortWorks:', sortWorks.map(w => w.title));
       if (!sortWorks || sortWorks.length === 0) {
         closeSortOverlay(true);
         return;
@@ -3762,6 +3763,7 @@
 
     function onSortDragStart(e) {
       sortDragIdx = parseInt(this.dataset.sortIdx);
+      console.log('[Sort] dragstart:', sortDragIdx, this.querySelector('.sort-card-title')?.textContent);
       this.classList.add('sort-dragging');
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', String(sortDragIdx));
@@ -3858,15 +3860,16 @@
 
     function onSortDrop(e) {
       e.preventDefault();
+      e.stopPropagation();
       clearSqueezeClasses();
       const dropIdx = parseInt(this.dataset.sortIdx);
-      // Read drag source index from dataTransfer, fallback to sortDragIdx
-      const dragIdxStr = e.dataTransfer.getData('text/plain');
-      const dragIdx = dragIdxStr ? parseInt(dragIdxStr) : sortDragIdx;
-      if (!isNaN(dragIdx) && !isNaN(dropIdx) && dragIdx !== dropIdx) {
+      const dragIdx = sortDragIdx;
+      console.log('[Sort] drop:', dragIdx, '->', dropIdx);
+      if (dragIdx !== null && !isNaN(dragIdx) && !isNaN(dropIdx) && dragIdx !== dropIdx) {
         const moved = sortWorks.splice(dragIdx, 1)[0];
         sortWorks.splice(dropIdx, 0, moved);
-        renderSortGrid();
+        console.log('[Sort] new order:', sortWorks.map(w => w.title));
+        setTimeout(() => renderSortGrid(), 0);
       }
       sortDragIdx = null;
     }
