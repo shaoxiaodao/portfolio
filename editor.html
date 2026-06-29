@@ -1192,6 +1192,22 @@
       height: 24px;
       background: rgba(255,255,255,0.1);
     }
+    .toolbar-confirm-btn {
+      padding: 5px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #111;
+      background: rgba(255,255,255,0.9);
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      white-space: nowrap;
+    }
+    .toolbar-confirm-btn:hover {
+      background: #fff;
+      transform: translateY(-1px);
+    }
 
     /* Image upload modal */
     .img-upload-modal {
@@ -2843,6 +2859,8 @@
         <label>颜色</label>
         <input type="color" id="tbColor" value="#f0f0f0">
       </div>
+      <div class="toolbar-divider"></div>
+      <button id="tbConfirm" class="toolbar-confirm-btn">确定</button>
     `;
     document.body.appendChild(textToolbar);
 
@@ -2914,6 +2932,11 @@
       if (!editorMode) return;
       const editable = e.target.closest('[data-editable]');
       if (editable) {
+        // If switching from another editable, finalize it
+        if (currentEditable && currentEditable !== editable) {
+          currentEditable.contentEditable = 'false';
+          saveEditorData();
+        }
         // Don't prevent default - let browser handle cursor placement
         e.stopPropagation();
         currentEditable = editable;
@@ -2933,8 +2956,16 @@
         openImageModal(uploadable);
         return;
       }
-      // Click elsewhere - hide toolbar
-      textToolbar.classList.remove('visible');
+      // Click on toolbar itself - do nothing
+      if (e.target.closest('.text-toolbar')) {
+        return;
+      }
+      // Click elsewhere - finalize current edit but keep toolbar until confirm
+      if (currentEditable) {
+        currentEditable.contentEditable = 'false';
+        saveEditorData();
+        currentEditable = null;
+      }
     });
 
     function showTextToolbar(el) {
@@ -2954,50 +2985,56 @@
       document.getElementById('tbColor').value = rgbToHex(style.color);
     }
 
-    // Toolbar change handlers
+    // Toolbar change handlers - live preview only, save on confirm
     document.getElementById('tbFont').addEventListener('change', (e) => {
       if (currentEditable) {
         currentEditable.style.fontFamily = e.target.value;
-        saveEditorData();
       }
     });
     document.getElementById('tbFontSize').addEventListener('change', (e) => {
       if (currentEditable) {
         currentEditable.style.fontSize = e.target.value + 'px';
-        saveEditorData();
       }
     });
     document.getElementById('tbColor').addEventListener('input', (e) => {
       if (currentEditable) {
         currentEditable.style.color = e.target.value;
-        saveEditorData();
       }
     });
 
-    // Save text on blur
-    document.addEventListener('focusout', (e) => {
-      const el = e.target;
-      if (el.hasAttribute && el.hasAttribute('data-editable')) {
-        el.contentEditable = 'false';
-        const newText = el.textContent;
-        const key = el.getAttribute('data-editable');
+    // Confirm button - save and close toolbar
+    document.getElementById('tbConfirm').addEventListener('click', () => {
+      if (currentEditable) {
+        currentEditable.contentEditable = 'false';
+        const newText = currentEditable.textContent;
+        const key = currentEditable.getAttribute('data-editable');
         const isDetailField = key.startsWith('detail-');
         const detailActive = detailOverlay.classList.contains('active');
 
         if (isDetailField && detailActive && newText !== originalEditText) {
-          // Detail page text changed - show confirm modal
-          pendingTextConfirm = { el, key, newText, oldText: originalEditText };
+          pendingTextConfirm = { el: currentEditable, key, newText, oldText: originalEditText };
           showTextConfirmModal(pendingTextConfirm);
-        } else {
-          // Non-detail field or no change - save immediately
-          saveEditorData();
         }
 
-        setTimeout(() => {
-          if (!document.activeElement.hasAttribute || !document.activeElement.hasAttribute('data-editable')) {
-            textToolbar.classList.remove('visible');
-          }
-        }, 200);
+        saveEditorData();
+        currentEditable = null;
+      }
+      textToolbar.classList.remove('visible');
+    });
+
+    // Save text on blur - but don't hide toolbar (confirm button handles that)
+    document.addEventListener('focusout', (e) => {
+      const el = e.target;
+      if (el.hasAttribute && el.hasAttribute('data-editable')) {
+        // Don't remove contentEditable or hide toolbar here
+        // Let the confirm button handle that
+        const relatedTarget = e.relatedTarget;
+        // If focus moved to toolbar or confirm button, keep editing
+        if (relatedTarget && (relatedTarget.closest('.text-toolbar') || relatedTarget.id === 'tbConfirm')) {
+          return;
+        }
+        // If focus moved outside editable and toolbar, just mark as no longer editing
+        // but keep toolbar visible until confirm is clicked
       }
     });
 
