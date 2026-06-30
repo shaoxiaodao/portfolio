@@ -4140,8 +4140,41 @@
     });
     sortObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
+    // Sync works array from current DOM state (card text, cover images, detail text)
+    function syncWorksFromDOM() {
+      works.forEach((w, i) => {
+        // Card text
+        const catEl = document.querySelector('[data-editable="cat-' + i + '"]');
+        if (catEl) w.categoryName = catEl.textContent;
+        const titleEl = document.querySelector('[data-editable="title-' + i + '"]');
+        if (titleEl) w.title = titleEl.textContent;
+
+        // Card cover image
+        const coverContainer = document.querySelector('[data-uploadable="cover"][data-img-id="card-' + i + '"]');
+        if (coverContainer) {
+          const coverImg = coverContainer.querySelector('img');
+          if (coverImg && coverImg.src) w.img = coverImg.src;
+        }
+
+        // Detail page text fields
+        const detailTitle = document.querySelector('[data-editable="detail-title-' + i + '"]');
+        if (detailTitle) w.title = detailTitle.textContent;
+        const detailCat = document.querySelector('[data-editable="detail-cat-' + i + '"]');
+        if (detailCat) w.categoryName = detailCat.textContent;
+        const detailDesc = document.querySelector('[data-editable="detail-desc-' + i + '"]');
+        if (detailDesc) w.desc = detailDesc.textContent;
+        const detailClient = document.querySelector('[data-editable="detail-client-' + i + '"]');
+        if (detailClient) w.client = detailClient.textContent;
+        const detailYear = document.querySelector('[data-editable="detail-year-' + i + '"]');
+        if (detailYear) w.year = detailYear.textContent;
+        const detailScope = document.querySelector('[data-editable="detail-scope-' + i + '"]');
+        if (detailScope) w.scope = detailScope.textContent;
+      });
+    }
+
     // Save/Load editor data
     function saveEditorData() {
+      syncWorksFromDOM();
       const data = {};
       document.querySelectorAll('[data-editable]').forEach(el => {
         const key = el.getAttribute('data-editable');
@@ -4448,7 +4481,8 @@
         console.log('Changes detected:', textChanges, 'text,', imageChanges, 'images');
 
         // Step 5b: Inject updated works array and editor data for public visitors
-        // This ensures new projects and card edits persist beyond localStorage
+        // Sync works from DOM first (card text, cover images, detail text)
+        syncWorksFromDOM();
         const worksJson = JSON.stringify(works);
         const editorDataJson = JSON.stringify(
           (() => {
