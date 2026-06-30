@@ -2348,7 +2348,12 @@
       try {
         const raw = localStorage.getItem('shaohua_editor_data');
         if (!raw) return;
-        const data = JSON.parse(raw);
+        let data = JSON.parse(raw);
+        // Safety: handle previously double-encoded data
+        if (typeof data === 'string') {
+          try { data = JSON.parse(data); } catch(e2) { return; }
+        }
+        if (!data || typeof data !== 'object') return;
         // Restore text and styles
         scope.querySelectorAll('[data-editable]').forEach(el => {
           const key = el.getAttribute('data-editable');
@@ -4164,7 +4169,12 @@
       try {
         const raw = localStorage.getItem('shaohua_editor_data');
         if (!raw) return;
-        const data = JSON.parse(raw);
+        let data = JSON.parse(raw);
+        // Safety: handle previously double-encoded data from old sync scripts
+        if (typeof data === 'string') {
+          try { data = JSON.parse(data); } catch(e2) { return; }
+        }
+        if (!data || typeof data !== 'object') return;
         // Restore text
         document.querySelectorAll('[data-editable]').forEach(el => {
           const key = el.getAttribute('data-editable');
@@ -4409,7 +4419,8 @@
           '    try {\n' +
           '      var _ew = ' + worksJson + ';\n' +
           '      localStorage.setItem("shaohua_works", JSON.stringify(_ew));\n' +
-          '      localStorage.setItem("shaohua_editor_data", ' + JSON.stringify(editorDataJson) + ');\n' +
+          '      var _ed = ' + editorDataJson + ';\n' +
+          '      localStorage.setItem("shaohua_editor_data", JSON.stringify(_ed));\n' +
           '      var _g = document.getElementById("masonryGrid");\n' +
           '      if (_g && typeof createCardHTML === "function") {\n' +
           '        works.length = 0; _ew.forEach(function(w){works.push(w)});\n' +
