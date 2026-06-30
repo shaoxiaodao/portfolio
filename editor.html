@@ -1111,6 +1111,25 @@
     body.editor-mode [data-uploadable]:hover::after {
       opacity: 1;
     }
+
+    /* Contact page QR wrapper — resizable in editor mode */
+    body.editor-mode .contact-qr-wrapper {
+      resize: both;
+      overflow: hidden;
+      min-width: 80px;
+      min-height: 80px;
+      max-width: 400px;
+      max-height: 400px;
+      cursor: default;
+    }
+    body.editor-mode .contact-qr-wrapper::after {
+      content: '拖拽右下角调整大小';
+      font-size: 11px;
+      color: white;
+      background: rgba(0,0,0,0.6);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
     .upload-hint {
       position: absolute;
       top: 50%;
@@ -2089,8 +2108,8 @@
     <a href="#top" class="brand" data-editable="brand" onclick="if(editorMode){event.preventDefault();return false;}"><span class="brand-en">SHAOHUA</span><span class="brand-cn">韶华</span></a>
     <ul class="nav-links">
       <li><a href="#works" data-editable="nav-works" onclick="if(editorMode){event.preventDefault();return false;}">作品</a></li>
-      <li><a href="javascript:void(0)" onclick="openProfile()" data-editable="nav-profile">简介</a></li>
-      <li><a href="javascript:void(0)" onclick="openContact()" data-editable="nav-contact">联系</a></li>
+      <li><a href="javascript:void(0)" onclick="event.stopPropagation();openProfile()" data-editable="nav-profile">简介</a></li>
+      <li><a href="javascript:void(0)" onclick="event.stopPropagation();openContact()" data-editable="nav-contact">联系</a></li>
     </ul>
   </nav>
 
@@ -2837,7 +2856,6 @@
     const contactClose = document.getElementById('contactClose');
 
     function openContact() {
-      if (editorMode) return; // Don't navigate in editor mode
       contactOverlay.classList.add('active');
       contactOverlay.scrollTop = 0;
       document.body.style.overflow = 'hidden';
@@ -4243,7 +4261,28 @@
     // Save/Load editor data
     function saveEditorData() {
       syncWorksFromDOM();
+
+      // Capture resizable element dimensions (contact QR wrapper)
+      const qrWrapper = document.querySelector('.contact-qr-wrapper');
+      if (qrWrapper) {
+        const w = qrWrapper.offsetWidth;
+        const h = qrWrapper.offsetHeight;
+        if (w && h) {
+          qrWrapper.style.width = w + 'px';
+          qrWrapper.style.height = h + 'px';
+        }
+      }
+
       const data = {};
+
+      // Save contact QR wrapper size
+      if (qrWrapper && qrWrapper.style.width) {
+        data['_qr_size_wechat-qr'] = {
+          width: qrWrapper.style.width,
+          height: qrWrapper.style.height
+        };
+      }
+
       document.querySelectorAll('[data-editable]').forEach(el => {
         const key = el.getAttribute('data-editable');
         data[key] = {
@@ -4353,6 +4392,14 @@
             if (data[key].color) el.style.color = data[key].color;
           }
         });
+        // Restore contact QR wrapper size
+        if (data['_qr_size_wechat-qr']) {
+          const qrEl = document.querySelector('.contact-qr-wrapper');
+          if (qrEl) {
+            if (data['_qr_size_wechat-qr'].width) qrEl.style.width = data['_qr_size_wechat-qr'].width;
+            if (data['_qr_size_wechat-qr'].height) qrEl.style.height = data['_qr_size_wechat-qr'].height;
+          }
+        }
         // Restore images (support multi-image galleries)
         let restoredCount = 0;
         document.querySelectorAll('[data-uploadable]').forEach(el => {
@@ -4546,6 +4593,16 @@
           }
         });
 
+        // Step 5a: Copy resizable element dimensions (e.g., contact QR wrapper size)
+        const editorQr = document.querySelector('.contact-qr-wrapper');
+        if (editorQr && editorQr.style.width) {
+          const targetQr = doc.querySelector('.contact-qr-wrapper');
+          if (targetQr) {
+            targetQr.style.width = editorQr.style.width;
+            targetQr.style.height = editorQr.style.height;
+          }
+        }
+
         console.log('Changes detected:', textChanges, 'text,', imageChanges, 'images');
 
         // Step 5b: Inject updated works array and editor data for public visitors
@@ -4581,6 +4638,11 @@
                 if (srcs.length > 0) data[key] = JSON.stringify(srcs);
               }
             });
+            // Include QR wrapper size if set
+            const _qr = document.querySelector('.contact-qr-wrapper');
+            if (_qr && _qr.style.width) {
+              data['_qr_size_wechat-qr'] = { width: _qr.style.width, height: _qr.style.height };
+            }
             return data;
           })()
         );
