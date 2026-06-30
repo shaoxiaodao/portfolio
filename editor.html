@@ -2999,13 +2999,14 @@
           currentEditable.contentEditable = 'false';
           saveEditorData();
         }
-        // Don't prevent default - let browser handle cursor placement
         e.stopPropagation();
-        currentEditable = editable;
-        originalEditText = editable.textContent; // store original text before editing
-        editable.contentEditable = 'true';
-        editable.focus();
-        // Let browser place cursor at click position naturally
+        // Only re-initialize if this element isn't already being edited
+        if (currentEditable !== editable) {
+          currentEditable = editable;
+          originalEditText = editable.textContent;
+          editable.contentEditable = 'true';
+          editable.focus();
+        }
         showTextToolbar(editable);
         return;
       }
@@ -3141,6 +3142,42 @@
         });
         saveEditorData();
       }, 50);
+    });
+
+    // Constrain text selection within the contentEditable element
+    // Prevents Ctrl+A / triple-click / drag-select from escaping into non-editable parents
+    document.addEventListener('selectstart', (e) => {
+      if (!editorMode) return;
+      const editable = e.target.closest ? e.target.closest('[data-editable]') : null;
+      if (!editable || editable.contentEditable !== 'true') return;
+      // Set the selection to be within this element only
+      const sel = window.getSelection();
+      if (sel) {
+        // Use setTimeout to let the browser handle the initial selection,
+        // then constrain it if it escaped the element
+        setTimeout(() => {
+          const s = window.getSelection();
+          if (!s.rangeCount) return;
+          const range = s.getRangeAt(0);
+          // Check if selection extends outside the editable element
+          if (!editable.contains(range.startContainer) || !editable.contains(range.endContainer)) {
+            // Constrain selection to within the editable element
+            const newRange = document.createRange();
+            if (!editable.contains(range.startContainer)) {
+              newRange.setStart(editable, 0);
+            } else {
+              newRange.setStart(range.startContainer, range.startOffset);
+            }
+            if (!editable.contains(range.endContainer)) {
+              newRange.setEnd(editable, editable.childNodes.length);
+            } else {
+              newRange.setEnd(range.endContainer, range.endOffset);
+            }
+            s.removeAllRanges();
+            s.addRange(newRange);
+          }
+        }, 0);
+      }
     });
 
     // Text confirm modal logic
