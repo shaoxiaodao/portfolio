@@ -2874,6 +2874,16 @@
     // Consolidated Escape key handler for all overlays
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
+      // If text confirm modal is visible, cancel it first
+      const textConfirmModal = document.getElementById('textConfirmModal');
+      if (textConfirmModal && textConfirmModal.classList.contains('visible')) {
+        if (pendingTextConfirm) {
+          pendingTextConfirm.el.textContent = pendingTextConfirm.oldText;
+          pendingTextConfirm = null;
+        }
+        textConfirmModal.classList.remove('visible');
+        return;
+      }
       if (detailOverlay.classList.contains('active')) closeDetail();
       else if (contactOverlay.classList.contains('active')) closeContact();
       else if (profileOverlay.classList.contains('active')) closeProfile();
@@ -3101,9 +3111,11 @@
         if (isDetailField && detailActive && newText !== originalEditText) {
           pendingTextConfirm = { el: currentEditable, key, newText, oldText: originalEditText };
           showTextConfirmModal(pendingTextConfirm);
+          // Don't save here — card DOM still has old text.
+          // The modal confirm handler saves after updating the card.
+        } else {
+          saveEditorData();
         }
-
-        saveEditorData();
         currentEditable = null;
       }
       textToolbar.classList.remove('visible');
@@ -3233,12 +3245,23 @@
     // Confirm save
     document.getElementById('textConfirmOk').addEventListener('click', () => {
       if (pendingTextConfirm) {
-        // Keep the new text, sync to card if applicable
+        // Sync to card DOM if applicable
         const sync = getCardSyncTarget(pendingTextConfirm.key);
         if (sync) {
           const cardEl = document.querySelector('[data-editable="' + sync.cardKey + '"]');
           if (cardEl) cardEl.textContent = pendingTextConfirm.newText;
         }
+        // Directly update the works array (safeguard for syncWorksFromDOM)
+        const pKey = pendingTextConfirm.key;
+        const pText = pendingTextConfirm.newText;
+        works.forEach((w, i) => {
+          if (pKey === 'detail-title-' + i) w.title = pText;
+          else if (pKey === 'detail-cat-' + i) w.categoryName = pText;
+          else if (pKey === 'detail-desc-' + i) w.desc = pText;
+          else if (pKey === 'detail-client-' + i) w.client = pText;
+          else if (pKey === 'detail-year-' + i) w.year = pText;
+          else if (pKey === 'detail-scope-' + i) w.scope = pText;
+        });
         saveEditorData();
         pendingTextConfirm = null;
       }
