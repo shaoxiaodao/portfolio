@@ -2542,6 +2542,9 @@
       if (editorMode) saveEditorData();
       detailOverlay.classList.remove('active');
       document.body.style.overflow = '';
+      // Clear detail elements from DOM so stale hidden elements don't get
+      // collected by saveEditorData or read by syncWorksFromDOM
+      detailContent.innerHTML = '';
     }
 
     detailClose.addEventListener('click', closeDetail);
@@ -4202,8 +4205,9 @@
 
     // Sync works array from current DOM state (card text, cover images, detail text)
     function syncWorksFromDOM() {
+      const detailIsActive = detailOverlay.classList.contains('active');
       works.forEach((w, i) => {
-        // Card text
+        // Card text (always read — cards are always in DOM)
         const catEl = document.querySelector('[data-editable="cat-' + i + '"]');
         if (catEl) w.categoryName = catEl.textContent;
         const titleEl = document.querySelector('[data-editable="title-' + i + '"]');
@@ -4216,19 +4220,23 @@
           if (coverImg && coverImg.src) w.img = coverImg.src;
         }
 
-        // Detail page text fields
-        const detailTitle = document.querySelector('[data-editable="detail-title-' + i + '"]');
-        if (detailTitle) w.title = detailTitle.textContent;
-        const detailCat = document.querySelector('[data-editable="detail-cat-' + i + '"]');
-        if (detailCat) w.categoryName = detailCat.textContent;
-        const detailDesc = document.querySelector('[data-editable="detail-desc-' + i + '"]');
-        if (detailDesc) w.desc = detailDesc.textContent;
-        const detailClient = document.querySelector('[data-editable="detail-client-' + i + '"]');
-        if (detailClient) w.client = detailClient.textContent;
-        const detailYear = document.querySelector('[data-editable="detail-year-' + i + '"]');
-        if (detailYear) w.year = detailYear.textContent;
-        const detailScope = document.querySelector('[data-editable="detail-scope-' + i + '"]');
-        if (detailScope) w.scope = detailScope.textContent;
+        // Detail page text fields — only read when detail overlay is active.
+        // When closed, detail elements remain in DOM with stale values that would
+        // incorrectly override the card values we just read above.
+        if (detailIsActive) {
+          const detailTitle = document.querySelector('[data-editable="detail-title-' + i + '"]');
+          if (detailTitle) w.title = detailTitle.textContent;
+          const detailCat = document.querySelector('[data-editable="detail-cat-' + i + '"]');
+          if (detailCat) w.categoryName = detailCat.textContent;
+          const detailDesc = document.querySelector('[data-editable="detail-desc-' + i + '"]');
+          if (detailDesc) w.desc = detailDesc.textContent;
+          const detailClient = document.querySelector('[data-editable="detail-client-' + i + '"]');
+          if (detailClient) w.client = detailClient.textContent;
+          const detailYear = document.querySelector('[data-editable="detail-year-' + i + '"]');
+          if (detailYear) w.year = detailYear.textContent;
+          const detailScope = document.querySelector('[data-editable="detail-scope-' + i + '"]');
+          if (detailScope) w.scope = detailScope.textContent;
+        }
       });
     }
 
