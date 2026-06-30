@@ -3312,17 +3312,19 @@
       handleFiles(e.dataTransfer.files);
     });
 
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB target
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB max file accepted
+    const IMG_TARGET = 200 * 1024; // 200KB target per image for localStorage
 
-    // Compress image using canvas to fit within maxSize bytes (fast single-pass)
+    // Compress image using canvas (targets ~200KB per image for localStorage)
     function compressImage(file, maxSize) {
+      const target = maxSize || IMG_TARGET;
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
           const img = new Image();
           img.onload = () => {
-            // Step 1: Scale down large images first (biggest size reduction)
-            const MAX_DIM = 1920;
+            // Step 1: Scale to max 1200px on longest side
+            const MAX_DIM = 1200;
             let w = img.width, h = img.height;
             if (w > MAX_DIM || h > MAX_DIM) {
               const scale = MAX_DIM / Math.max(w, h);
@@ -3334,24 +3336,24 @@
             canvas.height = h;
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
 
-            // Step 2: Compress at quality 0.8 (fast, usually enough)
-            let dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            // Step 2: Try quality 0.7 (good balance)
+            let dataUrl = canvas.toDataURL('image/jpeg', 0.7);
             let estSize = (dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75;
 
-            // Step 3: If still too big, try 0.5 quality
-            if (estSize > maxSize) {
+            // Step 3: If still too big, drop to 0.5 quality
+            if (estSize > target) {
               dataUrl = canvas.toDataURL('image/jpeg', 0.5);
               estSize = (dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75;
             }
 
-            // Step 4: If still too big, scale down further
-            if (estSize > maxSize && w > 800) {
-              const smallCanvas = document.createElement('canvas');
-              const sw = Math.round(w * 0.6), sh = Math.round(h * 0.6);
-              smallCanvas.width = sw;
-              smallCanvas.height = sh;
-              smallCanvas.getContext('2d').drawImage(canvas, 0, 0, sw, sh);
-              dataUrl = smallCanvas.toDataURL('image/jpeg', 0.5);
+            // Step 4: If still too big, scale down to 800px and quality 0.5
+            if (estSize > target && w > 800) {
+              const sCanvas = document.createElement('canvas');
+              const sw = 800, sh = Math.round(h * (800 / w));
+              sCanvas.width = sw;
+              sCanvas.height = sh;
+              sCanvas.getContext('2d').drawImage(canvas, 0, 0, sw, sh);
+              dataUrl = sCanvas.toDataURL('image/jpeg', 0.5);
             }
 
             resolve(dataUrl);
@@ -3361,6 +3363,37 @@
         };
         reader.onerror = () => reject(new Error('文件读取失败'));
         reader.readAsDataURL(file);
+      });
+    }
+
+    // Re-compress an existing data URL to smaller size (for localStorage)
+    function recompressDataUrl(dataUrl, target) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          if (w > 1200 || h > 1200) {
+            const s = 1200 / Math.max(w, h);
+            w = Math.round(w * s);
+            h = Math.round(h * s);
+          }
+          const c = document.createElement('canvas');
+          c.width = w;
+          c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          let result = c.toDataURL('image/jpeg', 0.6);
+          let est = (result.length - result.indexOf(',') - 1) * 0.75;
+          if (est > target && w > 800) {
+            const c2 = document.createElement('canvas');
+            c2.width = 800;
+            c2.height = Math.round(h * (800 / w));
+            c2.getContext('2d').drawImage(c, 0, 0, c2.width, c2.height);
+            result = c2.toDataURL('image/jpeg', 0.5);
+          }
+          resolve(result);
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
       });
     }
 
@@ -4119,8 +4152,11 @@
           color: el.style.color || ''
         };
       });
-      // Save images (support multi-image galleries)
+      // Collect images with size tracking
       let imageCount = 0;
+      const BUDGET = 4 * 1024 * 1024; // 4MB budget for all images
+      let totalImgSize = 0;
+      const imageEntries = [];
       document.querySelectorAll('[data-uploadable]').forEach(el => {
         const key = el.getAttribute('data-uploadable') + '_img_' + el.getAttribute('data-img-id');
         const imgs = el.querySelectorAll('img');
@@ -4128,38 +4164,69 @@
         if (imgs.length === 1) {
           const src = imgs[0].src;
           if (src && src.startsWith('data:')) {
-            data[key] = src;
+            const size = src.length;
+            imageEntries.push({ key, value: src, size, type: 'single' });
+            totalImgSize += size;
             imageCount++;
           }
         } else {
-          // Multi-image gallery: save as array
           const srcs = [];
+          let groupSize = 0;
           imgs.forEach(img => {
             if (img.src && img.src.startsWith('data:')) {
               srcs.push(img.src);
+              groupSize += img.src.length;
               imageCount++;
             }
           });
           if (srcs.length > 0) {
-            data[key] = JSON.stringify(srcs);
+            const val = JSON.stringify(srcs);
+            imageEntries.push({ key, value: val, size: val.length, type: 'multi' });
+            totalImgSize += val.length;
           }
         }
       });
+
+      // Sort: smallest images first (keep as many as possible within budget)
+      imageEntries.sort((a, b) => a.size - b.size);
+      let usedBudget = 0;
+      imageEntries.forEach(entry => {
+        if (usedBudget + entry.size <= BUDGET) {
+          data[entry.key] = entry.value;
+          usedBudget += entry.size;
+        } else {
+          console.warn('Skipping image', entry.key, '- would exceed budget');
+        }
+      });
+
       try {
-        localStorage.setItem('shaohua_editor_data', JSON.stringify(data));
-        // Save works array separately (for new projects) - but only if not empty
+        const jsonStr = JSON.stringify(data);
+        localStorage.setItem('shaohua_editor_data', jsonStr);
         if (works.length > 0) {
           localStorage.setItem('shaohua_works', JSON.stringify(works));
-        } else {
-          console.warn('works array is empty, skipping shaohua_works save');
         }
-        console.log('Editor data saved successfully,', imageCount, 'images');
+        console.log('Editor data saved,', imageCount, 'images,', Math.round(jsonStr.length / 1024), 'KB');
       } catch(e) {
-        // localStorage might be full with base64 images
         console.error('Could not save editor data:', e);
-        if (e.name === 'QuotaExceededError' || e.code === 22) {
-          showFeedback('本地存储空间不足，图片可能太大', 'error', 4000);
-        } else {
+        // Retry: save text only, skip all images
+        try {
+          const textOnly = {};
+          document.querySelectorAll('[data-editable]').forEach(el => {
+            const key = el.getAttribute('data-editable');
+            textOnly[key] = {
+              text: el.innerHTML,
+              fontFamily: el.style.fontFamily || '',
+              fontSize: el.style.fontSize || '',
+              color: el.style.color || ''
+            };
+          });
+          localStorage.setItem('shaohua_editor_data', JSON.stringify(textOnly));
+          if (works.length > 0) {
+            localStorage.setItem('shaohua_works', JSON.stringify(works));
+          }
+          showFeedback('文字已保存，图片因空间不足未保存（保存到GitHub时图片仍会写入）', 'error', 6000);
+        } catch(e2) {
+          console.error('Even text-only save failed:', e2);
           showFeedback('本地保存失败', 'error', 4000);
         }
       }
