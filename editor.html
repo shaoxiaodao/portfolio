@@ -3277,39 +3277,92 @@
       handleFiles(e.dataTransfer.files);
     });
 
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB target
+
+    // Compress image using canvas to fit within maxSize bytes
+    function compressImage(file, maxSize) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            let quality = 0.9;
+            let canvas = document.createElement('canvas');
+            let ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            function tryCompress() {
+              const dataUrl = canvas.toDataURL('image/jpeg', quality);
+              // Estimate size from base64 (base64 is ~4/3 of binary)
+              const estimatedSize = (dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75;
+              if (estimatedSize <= maxSize || quality <= 0.1) {
+                // Also scale down if still too large
+                if (estimatedSize > maxSize && canvas.width > 800) {
+                  const scale = 0.8;
+                  const newW = Math.round(canvas.width * scale);
+                  const newH = Math.round(canvas.height * scale);
+                  const tempCanvas = document.createElement('canvas');
+                  tempCanvas.width = newW;
+                  tempCanvas.height = newH;
+                  tempCanvas.getContext('2d').drawImage(canvas, 0, 0, newW, newH);
+                  canvas = tempCanvas;
+                  ctx = canvas.getContext('2d');
+                  quality = 0.9;
+                  tryCompress();
+                } else {
+                  resolve(dataUrl);
+                }
+              } else {
+                quality -= 0.1;
+                tryCompress();
+              }
+            }
+            tryCompress();
+          };
+          img.onerror = () => reject(new Error('图片加载失败'));
+          img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error('文件读取失败'));
+        reader.readAsDataURL(file);
+      });
+    }
 
     function handleFiles(files) {
       const preview = document.getElementById('imgPreview');
       for (const file of files) {
         if (!file.type.startsWith('image/')) continue;
-        if (file.size > MAX_FILE_SIZE) {
-          alert('图片 "' + file.name + '" 超过 5MB 限制，请选择较小的图片');
-          continue;
-        }
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const dataUrl = e.target.result;
-          // Validate data URL
+        
+        const processImage = (dataUrl) => {
           if (!dataUrl || !dataUrl.startsWith('data:image/')) {
             console.error('Invalid image data URL:', dataUrl);
             alert('图片读取失败，请重试');
             return;
           }
           if (currentImgType === 'cover' || currentImgType === 'detail-single') {
-            // Single image replace mode
             pendingImages = [dataUrl];
           } else {
-            // Detail mode: append to existing
             pendingImages.push(dataUrl);
           }
           renderPreview();
         };
-        reader.onerror = (e) => {
-          console.error('FileReader error:', e);
-          alert('图片读取失败，请检查文件是否损坏');
-        };
-        reader.readAsDataURL(file);
+
+        if (file.size > MAX_FILE_SIZE) {
+          // Compress large images
+          compressImage(file, MAX_FILE_SIZE).then(processImage).catch(err => {
+            console.error('Compression error:', err);
+            alert('图片 "' + file.name + '" 压缩失败，请重试');
+          });
+        } else {
+          const reader = new FileReader();
+          reader.onload = (e) => processImage(e.target.result);
+          reader.onerror = (e) => {
+            console.error('FileReader error:', e);
+            alert('图片读取失败，请检查文件是否损坏');
+          };
+          reader.readAsDataURL(file);
+        }
       }
     }
 
