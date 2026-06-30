@@ -2359,19 +2359,47 @@
             if (data[key].color) el.style.color = data[key].color;
           }
         });
-        // Restore images
+        // Restore images (support multi-image galleries)
         scope.querySelectorAll('[data-uploadable]').forEach(el => {
           const key = el.getAttribute('data-uploadable') + '_img_' + el.getAttribute('data-img-id');
-          if (data[key]) {
-            const dataUrl = data[key];
-            if (dataUrl && dataUrl.startsWith('data:image/')) {
-              const img = el.querySelector('img');
-              if (img) {
-                img.src = dataUrl;
-                img.onerror = () => {
-                  console.warn('Failed to load saved image for key:', key);
-                };
+          if (!data[key]) return;
+          const saved = data[key];
+
+          // Check if it's a JSON array (multi-image gallery)
+          if (typeof saved === 'string' && saved.startsWith('[')) {
+            try {
+              const srcs = JSON.parse(saved);
+              if (Array.isArray(srcs) && srcs.length > 0) {
+                el.querySelectorAll('img').forEach(img => img.remove());
+                const hint = el.querySelector('.upload-hint');
+                srcs.forEach(src => {
+                  if (src && src.startsWith('data:image/')) {
+                    const img = document.createElement('img');
+                    img.src = src;
+                    img.className = 'detail-gallery-img';
+                    img.style.aspectRatio = '16/9';
+                    img.onerror = () => {
+                      console.warn('Failed to load saved gallery image');
+                    };
+                    if (hint) {
+                      el.insertBefore(img, hint);
+                    } else {
+                      el.appendChild(img);
+                    }
+                  }
+                });
               }
+            } catch (e) {
+              console.warn('Failed to parse multi-image data for scope key:', key);
+            }
+          } else if (saved && saved.startsWith('data:image/')) {
+            // Single image
+            const img = el.querySelector('img');
+            if (img) {
+              img.src = saved;
+              img.onerror = () => {
+                console.warn('Failed to load saved image for scope key:', key);
+              };
             }
           }
         });
@@ -2505,6 +2533,8 @@
     }
 
     function closeDetail() {
+      // Save any changes made in the detail overlay (e.g., uploaded images)
+      if (editorMode) saveEditorData();
       detailOverlay.classList.remove('active');
       document.body.style.overflow = '';
     }
