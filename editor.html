@@ -4531,13 +4531,15 @@
         var branch = 'main';
         var apiBase = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents';
 
-        // Helper: fetch with auth via URL parameter (zero custom headers = guaranteed simple request, no CORS preflight)
+        // Helper: fetch with auth via Authorization header (GitHub requires header auth since 2020)
         async function ghFetch(url) {
-          var sep = url.indexOf('?') === -1 ? '?' : '&';
-          var authUrl = url + sep + 'access_token=' + token;
           var resp;
           try {
-            resp = await fetch(authUrl);
+            resp = await fetch(url, {
+              method: 'GET',
+              mode: 'cors',
+              headers: { 'Authorization': 'token ' + token }
+            });
           } catch (netErr) {
             throw new Error('网络请求失败，请检查网络连接后重试');
           }
@@ -4637,9 +4639,13 @@
         async function pushToGithub(currentSha, attempt) {
           var putResp;
           try {
-            putResp = await fetch(apiBase + '/index.html?access_token=' + token, {
+            putResp = await fetch(apiBase + '/index.html', {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              mode: 'cors',
+              headers: {
+                'Authorization': 'token ' + token,
+                'Content-Type': 'application/json'
+              },
               body: JSON.stringify({
                 message: 'update website content from editor',
                 content: btoa(unescape(encodeURIComponent(html))),
