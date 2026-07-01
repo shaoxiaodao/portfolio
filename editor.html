@@ -2183,7 +2183,7 @@
       <div class="contact-right">
         <div class="contact-info-block">
           <div class="contact-info-label" data-editable="contact-phone-label">咨询热线</div>
-          <div class="contact-phone-main" data-editable="contact-phone-main">400-607-6071</div>
+          <div class="contact-phone-main" data-editable="contact-phone-main">15233632168</div>
           <div class="contact-phone-sub" data-editable="contact-phone-sub">010-62576839 3913</div>
         </div>
         <div class="contact-info-block">
@@ -4488,14 +4488,125 @@
 
     function hideFeedback() { saveFeedback.classList.remove('visible'); }
 
-    // GitHub save disabled — the DOMParser round-trip corrupts index.html
-    githubSaveBtn.disabled = true;
-    githubSaveBtn.style.opacity = '0.4';
-    githubSaveBtn.style.cursor = 'not-allowed';
-    githubSaveBtn.title = '已禁用：编辑器保存会破坏公开网站，请联系开发者手动发布';
-    githubSaveBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      showFeedback('编辑器保存到GitHub已禁用（会破坏公开网站）。编辑内容已自动保存到本地浏览器，如需发布请联系开发者。', 'error', 8000);
+    /* ===== GITHUB SAVE (SAFE — string replacement, no DOMParser) ===== */
+    let isGithubSaving = false;
+
+    function replaceEditableInHtml(html, key, newContent) {
+      var re = new RegExp(
+        '(<[^>]*data-editable="' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*>)([\\s\\S]*?)(</[^>]+>)'
+      );
+      return html.replace(re, '$1' + newContent + '$3');
+    }
+
+    githubSaveBtn.addEventListener('click', async () => {
+      if (isGithubSaving) return;
+      isGithubSaving = true;
+      var origLabel = githubSaveBtn.querySelector('.btn-label').textContent;
+      githubSaveBtn.querySelector('.btn-label').textContent = '保存中...';
+      githubSaveBtn.disabled = true;
+
+      try {
+        saveEditorData();
+        showFeedback('正在同步到公开网站...', 'info', false);
+
+        var token = sessionStorage.getItem('github_token');
+        var owner = sessionStorage.getItem('github_user') || 'shaoxiaodao';
+        var repo  = sessionStorage.getItem('github_repo') || 'portfolio';
+        var branch = 'main';
+        var apiBase = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents';
+
+        // 1. Fetch current index.html from GitHub
+        var getResp = await fetch(apiBase + '/index.html?ref=' + branch, {
+          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!getResp.ok) throw new Error('获取文件失败 (' + getResp.status + ')');
+        var fileInfo = await getResp.json();
+        var sha = fileInfo.sha;
+        var html = decodeURIComponent(escape(atob(fileInfo.content)));
+
+        // 2. Apply text edits via safe string replacement (NO DOMParser)
+        var TEXT_ONLY_KEYS = [
+          'brand','nav-works','nav-profile','nav-contact',
+          'hero-label','hero-title','hero-subtitle',
+          'filter-all','filter-vi','filter-catalog','filter-packaging','filter-other',
+          'footer-brand','footer-copy',
+          'contact-title','contact-title-en','contact-phone-label',
+          'contact-phone-main','contact-phone-sub',
+          'contact-email-label','contact-email-value','contact-qr-label',
+          'profile-title','profile-subtitle'
+        ];
+
+        document.querySelectorAll('[data-editable]').forEach(function(el) {
+          var key = el.getAttribute('data-editable');
+          var isTextOnly = TEXT_ONLY_KEYS.indexOf(key) !== -1 ||
+                           /^cat-\d+$/.test(key) || /^title-\d+$/.test(key) ||
+                           /^detail-/.test(key);
+          var content = isTextOnly ? el.textContent : el.innerHTML;
+          html = replaceEditableInHtml(html, key, content);
+        });
+
+        // 2b. Update email href
+        var emailEl = document.querySelector('[data-editable="contact-email-value"]');
+        if (emailEl) {
+          var emailAddr = emailEl.textContent.trim();
+          html = html.replace(/href="mailto:[^"]*"/, 'href="mailto:' + emailAddr + '"');
+        }
+
+        // 3. Apply image edits
+        document.querySelectorAll('[data-uploadable]').forEach(function(el) {
+          var type = el.getAttribute('data-uploadable');
+          var imgId = el.getAttribute('data-img-id');
+          var img = el.querySelector('img');
+          if (!img || !img.src) return;
+          if (type === 'cover' && imgId && imgId.startsWith('card-')) {
+            var idx = imgId.replace('card-', '');
+            var re = new RegExp(
+              '(<[^>]*data-img-id="card-' + idx + '"[^>]*>[\\s\\S]*?<img[^>]*src=")[^"]*(")'
+            );
+            html = html.replace(re, '$1' + img.src + '$2');
+          } else if (type === 'cover' && imgId === 'portrait') {
+            var re2 = new RegExp(
+              '(<[^>]*data-img-id="portrait"[^>]*>[\\s\\S]*?<img[^>]*src=")[^"]*(")'
+            );
+            html = html.replace(re2, '$1' + img.src + '$2');
+          }
+        });
+
+        // 4. Push updated index.html to GitHub
+        var putResp = await fetch(apiBase + '/index.html', {
+          method: 'PUT',
+          headers: {
+            'Authorization': 'token ' + token,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: 'update website content from editor',
+            content: btoa(unescape(encodeURIComponent(html))),
+            sha: sha,
+            branch: branch
+          })
+        });
+
+        if (!putResp.ok) {
+          var errData = await putResp.json().catch(function() { return {}; });
+          throw new Error(errData.message || '保存失败 (' + putResp.status + ')');
+        }
+
+        var result = await putResp.json();
+        showFeedback(
+          '保存成功！<a href="' + result.commit.html_url + '" target="_blank">查看提交 →</a>',
+          'success', 8000
+        );
+
+      } catch (err) {
+        console.error('GitHub save error:', err);
+        showFeedback('保存失败：' + err.message, 'error', 8000);
+      } finally {
+        isGithubSaving = false;
+        githubSaveBtn.disabled = false;
+        githubSaveBtn.querySelector('.btn-label').textContent = origLabel;
+      }
     });
 
     /* ===== LOGOUT FUNCTIONALITY ===== */
