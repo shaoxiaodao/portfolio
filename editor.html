@@ -2557,12 +2557,28 @@
     }
 
     function closeDetail() {
-      // Save any changes made in the detail overlay (e.g., uploaded images)
-      if (editorMode) saveEditorData();
+      // Sync detail page edits to card DOM BEFORE saving.
+      // Without this, the card DOM keeps stale text and saveEditorData()
+      // captures the old card text into localStorage.
+      if (editorMode) {
+        works.forEach(function(w, i) {
+          var dt = document.querySelector('[data-editable="detail-title-' + i + '"]');
+          if (dt) {
+            var cardTitle = document.querySelector('[data-editable="title-' + i + '"]');
+            if (cardTitle) cardTitle.textContent = dt.textContent;
+            w.title = dt.textContent;
+          }
+          var dc = document.querySelector('[data-editable="detail-cat-' + i + '"]');
+          if (dc) {
+            var cardCat = document.querySelector('[data-editable="cat-' + i + '"]');
+            if (cardCat) cardCat.textContent = dc.textContent;
+            w.categoryName = dc.textContent;
+          }
+        });
+        saveEditorData();
+      }
       detailOverlay.classList.remove('active');
       document.body.style.overflow = '';
-      // Clear detail elements from DOM so stale hidden elements don't get
-      // collected by saveEditorData or read by syncWorksFromDOM
       detailContent.innerHTML = '';
     }
 
@@ -4515,13 +4531,13 @@
         var branch = 'main';
         var apiBase = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents';
 
-        // Helper: simple fetch with auth (only Authorization header = simple GET, no CORS preflight)
+        // Helper: fetch with auth via URL parameter (zero custom headers = guaranteed simple request, no CORS preflight)
         async function ghFetch(url) {
+          var sep = url.indexOf('?') === -1 ? '?' : '&';
+          var authUrl = url + sep + 'access_token=' + token;
           var resp;
           try {
-            resp = await fetch(url, {
-              headers: { 'Authorization': 'token ' + token }
-            });
+            resp = await fetch(authUrl);
           } catch (netErr) {
             throw new Error('网络请求失败，请检查网络连接后重试');
           }
@@ -4619,20 +4635,21 @@
 
         // 4. Push updated index.html to GitHub (with retry on SHA mismatch)
         async function pushToGithub(currentSha, attempt) {
-          var putResp = await fetch(apiBase + '/index.html', {
-            method: 'PUT',
-            headers: {
-              'Authorization': 'token ' + token,
-              'Accept': 'application/vnd.github.v3+json',
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              message: 'update website content from editor',
-              content: btoa(unescape(encodeURIComponent(html))),
-              sha: currentSha,
-              branch: branch
-            })
-          });
+          var putResp;
+          try {
+            putResp = await fetch(apiBase + '/index.html?access_token=' + token, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                message: 'update website content from editor',
+                content: btoa(unescape(encodeURIComponent(html))),
+                sha: currentSha,
+                branch: branch
+              })
+            });
+          } catch (netErr) {
+            throw new Error('上传失败，请检查网络连接后重试');
+          }
           if (!putResp.ok && attempt < 2) {
             var errData = await putResp.json().catch(function() { return {}; });
             var errMsg = errData.message || '';
