@@ -4530,25 +4530,56 @@
         var html = decodeURIComponent(escape(atob(fileInfo.content)));
 
         // 2. Apply text edits via safe string replacement (NO DOMParser)
-        var TEXT_ONLY_KEYS = [
-          'brand','nav-works','nav-profile','nav-contact',
-          'hero-label','hero-title','hero-subtitle',
-          'filter-all','filter-vi','filter-catalog','filter-packaging','filter-other',
-          'footer-brand','footer-copy',
-          'contact-title','contact-title-en','contact-phone-label',
-          'contact-phone-main','contact-phone-sub',
-          'contact-email-label','contact-email-value','contact-qr-label',
-          'profile-title','profile-subtitle'
-        ];
+        // Rich-text elements that need innerHTML (preserves <p> tags etc.)
+        var HTML_KEYS = ['profile-bio'];
+
+        // Keys where we read from works array instead of DOM (DOM may be stale)
+        var detailOverlayActive = detailOverlay.classList.contains('active');
 
         document.querySelectorAll('[data-editable]').forEach(function(el) {
           var key = el.getAttribute('data-editable');
-          var isTextOnly = TEXT_ONLY_KEYS.indexOf(key) !== -1 ||
-                           /^cat-\d+$/.test(key) || /^title-\d+$/.test(key) ||
-                           /^detail-/.test(key);
-          var content = isTextOnly ? el.textContent : el.innerHTML;
+
+          // Skip detail-page keys when overlay is closed (elements removed from DOM)
+          if (/^detail-/.test(key) && !detailOverlayActive) return;
+
+          var content;
+          if (HTML_KEYS.indexOf(key) !== -1) {
+            // Rich text: preserve HTML structure (paragraphs etc.)
+            content = el.innerHTML;
+          } else {
+            // Plain text: use textContent to avoid span duplication
+            content = el.textContent;
+          }
+
           html = replaceEditableInHtml(html, key, content);
         });
+
+        // 2a. Override card titles/categories from works array (always up-to-date,
+        //     unlike the card DOM which may lag behind detail-page edits)
+        works.forEach(function(w, i) {
+          html = replaceEditableInHtml(html, 'title-' + i, w.title || '');
+          html = replaceEditableInHtml(html, 'cat-' + i, w.categoryName || '');
+        });
+
+        // 2b. Also apply detail-page fields from works array when overlay is active
+        if (detailOverlayActive) {
+          works.forEach(function(w, i) {
+            var detailEl = document.querySelector('[data-editable="detail-title-' + i + '"]');
+            if (detailEl) {
+              html = replaceEditableInHtml(html, 'detail-title-' + i, detailEl.textContent);
+              var dCat = document.querySelector('[data-editable="detail-cat-' + i + '"]');
+              if (dCat) html = replaceEditableInHtml(html, 'detail-cat-' + i, dCat.textContent);
+              var dDesc = document.querySelector('[data-editable="detail-desc-' + i + '"]');
+              if (dDesc) html = replaceEditableInHtml(html, 'detail-desc-' + i, dDesc.textContent);
+              var dClient = document.querySelector('[data-editable="detail-client-' + i + '"]');
+              if (dClient) html = replaceEditableInHtml(html, 'detail-client-' + i, dClient.textContent);
+              var dYear = document.querySelector('[data-editable="detail-year-' + i + '"]');
+              if (dYear) html = replaceEditableInHtml(html, 'detail-year-' + i, dYear.textContent);
+              var dScope = document.querySelector('[data-editable="detail-scope-' + i + '"]');
+              if (dScope) html = replaceEditableInHtml(html, 'detail-scope-' + i, dScope.textContent);
+            }
+          });
+        }
 
         // 2b. Update email href
         var emailEl = document.querySelector('[data-editable="contact-email-value"]');
