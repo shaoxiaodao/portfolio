@@ -4641,48 +4641,68 @@
           }
         });
 
-        // 4. Push updated index.html via Git Data API (bypasses SHA mismatch issue entirely)
+        // 4. Push updated index.html via Git Data API (bypasses Contents API SHA mismatch)
         async function pushToGithub(fileSha, updatedHtml) {
           var gitApiBase = 'https://api.github.com/repos/' + owner + '/' + repo + '/git';
           var contentB64 = btoa(unescape(encodeURIComponent(updatedHtml)));
 
-          // Helper for Git API calls
-          async function gitApi(method, path, body) {
+          // Test connectivity first (GET with Contents API - known to work)
+          try {
+            await fetch('https://api.github.com/repos/' + owner + '/' + repo + '/contents?_=' + Date.now(), {
+              mode: 'cors',
+              headers: { 'Authorization': 'token ' + token }
+            });
+          } catch (e) {
+            console.error('[Save] Connectivity test failed:', e);
+            throw new Error('无法连接GitHub API，请检查网络或代理设置');
+          }
+
+          // Helper for Git Data API calls with detailed error logging
+          async function gitApi(method, path, body, stepName) {
+            var url = gitApiBase + path;
             var opts = {
               method: method,
               mode: 'cors',
               headers: {
                 'Authorization': 'token ' + token,
-                'Content-Type': 'application/json'
+                'Accept': 'application/vnd.github.v3+json'
               }
             };
-            if (body) opts.body = JSON.stringify(body);
+            if (body) {
+              opts.headers['Content-Type'] = 'application/json';
+              opts.body = JSON.stringify(body);
+            }
+            console.log('[Save] ' + stepName + ': ' + method + ' ' + url);
             var r;
             try {
-              r = await fetch(gitApiBase + path, opts);
+              r = await fetch(url, opts);
             } catch (e) {
-              throw new Error('网络请求失败，请检查网络连接后重试');
+              console.error('[Save] ' + stepName + ' fetch threw:', e.name, e.message);
+              throw new Error(stepName + '网络中断');
             }
+            console.log('[Save] ' + stepName + ' status:', r.status);
             if (!r.ok) {
-              var d = await r.json().catch(function() { return {}; });
-              throw new Error(d.message || 'Git API错误 (' + r.status + ')');
+              var d;
+              try { d = await r.json(); } catch(e) { d = {}; }
+              console.error('[Save] ' + stepName + ' error:', d);
+              throw new Error(stepName + '失败(' + r.status + '): ' + (d.message || ''));
             }
             return r.json();
           }
 
           // Step 1: Get current branch ref → commit SHA
-          var refData = await gitApi('GET', '/refs/heads/' + branch);
+          var refData = await gitApi('GET', '/refs/heads/' + branch, null, '获取分支信息');
           var commitSha = refData.object.sha;
 
           // Step 2: Get commit → tree SHA
-          var commitData = await gitApi('GET', '/commits/' + commitSha);
+          var commitData = await gitApi('GET', '/commits/' + commitSha, null, '获取提交信息');
           var treeSha = commitData.tree.sha;
 
           // Step 3: Create blob with new file content
           var blobData = await gitApi('POST', '/blobs', {
             content: contentB64,
             encoding: 'base64'
-          });
+          }, '上传文件内容');
 
           // Step 4: Create new tree with updated index.html
           var treeData = await gitApi('POST', '/trees', {
@@ -4693,19 +4713,31 @@
               type: 'blob',
               sha: blobData.sha
             }]
-          });
+          }, '创建文件树');
 
           // Step 5: Create new commit
           var newCommit = await gitApi('POST', '/commits', {
             message: 'update website content from editor',
             tree: treeData.sha,
             parents: [commitSha]
-          });
+          }, '创建提交');
 
-          // Step 6: Update branch ref to new commit
-          await gitApi('PATCH', '/refs/heads/' + branch, {
-            sha: newCommit.sha
-          });
+          // Step 6: Update branch ref — try POST first (wider CORS support), fallback to PATCH
+          var refUpdateBody = { sha: newCommit.sha };
+          try {
+            await gitApi('POST', '/refs/heads/' + branch, refUpdateBody, '更新分支(POST)');
+          } catch (postErr) {
+            console.log('[Save] POST ref update failed, trying PATCH:', postErr.message);
+            try {
+              await gitApi('PATCH', '/refs/heads/' + branch, refUpdateBody, '更新分支(PATCH)');
+            } catch (patchErr) {
+              // Both failed — commit exists but ref not updated
+              // Try Contents API PUT as last resort (commit is already created,
+              // so we just need to update the file another way)
+              console.log('[Save] PATCH also failed:', patchErr.message);
+              throw new Error('分支更新失败(POST/PATCH均不可用)，请尝试使用Chrome浏览器');
+            }
+          }
 
           return {
             html_url: 'https://github.com/' + owner + '/' + repo + '/commit/' + newCommit.sha,
