@@ -4515,9 +4515,14 @@
         var branch = 'main';
         var apiBase = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents';
 
-        // 1. Fetch current index.html from GitHub
-        var getResp = await fetch(apiBase + '/index.html?ref=' + branch, {
-          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' }
+        // 1. Fetch current index.html from GitHub (cache-bust with timestamp)
+        var getResp = await fetch(apiBase + '/index.html?ref=' + branch + '&_t=' + Date.now(), {
+          cache: 'no-store',
+          headers: {
+            'Authorization': 'token ' + token,
+            'Accept': 'application/vnd.github.v3+json',
+            'Cache-Control': 'no-cache, no-store'
+          }
         });
         if (!getResp.ok) throw new Error('获取文件失败 (' + getResp.status + ')');
         var fileInfo = await getResp.json();
@@ -4572,28 +4577,51 @@
           }
         });
 
-        // 4. Push updated index.html to GitHub
-        var putResp = await fetch(apiBase + '/index.html', {
-          method: 'PUT',
-          headers: {
-            'Authorization': 'token ' + token,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            message: 'update website content from editor',
-            content: btoa(unescape(encodeURIComponent(html))),
-            sha: sha,
-            branch: branch
-          })
-        });
-
-        if (!putResp.ok) {
-          var errData = await putResp.json().catch(function() { return {}; });
-          throw new Error(errData.message || '保存失败 (' + putResp.status + ')');
+        // 4. Push updated index.html to GitHub (with retry on SHA mismatch)
+        async function pushToGithub(currentSha, attempt) {
+          var putResp = await fetch(apiBase + '/index.html', {
+            method: 'PUT',
+            headers: {
+              'Authorization': 'token ' + token,
+              'Accept': 'application/vnd.github.v3+json',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              message: 'update website content from editor',
+              content: btoa(unescape(encodeURIComponent(html))),
+              sha: currentSha,
+              branch: branch
+            })
+          });
+          if (!putResp.ok && attempt < 2) {
+            var errData = await putResp.json().catch(function() { return {}; });
+            var errMsg = errData.message || '';
+            // SHA mismatch = file changed on server, re-fetch and retry
+            if (errMsg.indexOf('does not match') !== -1 || putResp.status === 409) {
+              console.log('SHA mismatch, re-fetching latest SHA and retrying...');
+              var retryResp = await fetch(apiBase + '/index.html?ref=' + branch + '&_t=' + Date.now(), {
+                cache: 'no-store',
+                headers: {
+                  'Authorization': 'token ' + token,
+                  'Accept': 'application/vnd.github.v3+json',
+                  'Cache-Control': 'no-cache, no-store'
+                }
+              });
+              if (retryResp.ok) {
+                var retryInfo = await retryResp.json();
+                return pushToGithub(retryInfo.sha, attempt + 1);
+              }
+            }
+            throw new Error(errMsg || '保存失败 (' + putResp.status + ')');
+          }
+          if (!putResp.ok) {
+            var errData2 = await putResp.json().catch(function() { return {}; });
+            throw new Error(errData2.message || '保存失败 (' + putResp.status + ')');
+          }
+          return putResp.json();
         }
 
-        var result = await putResp.json();
+        var result = await pushToGithub(sha, 1);
         showFeedback(
           '保存成功！<a href="' + result.commit.html_url + '" target="_blank">查看提交 →</a>',
           'success', 8000
