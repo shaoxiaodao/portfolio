@@ -4531,14 +4531,20 @@
         var branch = 'main';
         var apiBase = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents';
 
-        // Helper: fetch with auth via Authorization header (GitHub requires header auth since 2020)
+        // Helper: fetch with auth + cache busting (Cache-Control triggers preflight, but GitHub API supports it)
         async function ghFetch(url) {
+          var sep = url.indexOf('?') === -1 ? '?' : '&';
+          var freshUrl = url + sep + '_t=' + Date.now();
           var resp;
           try {
-            resp = await fetch(url, {
+            resp = await fetch(freshUrl, {
               method: 'GET',
               mode: 'cors',
-              headers: { 'Authorization': 'token ' + token }
+              cache: 'no-store',
+              headers: {
+                'Authorization': 'token ' + token,
+                'Cache-Control': 'no-cache'
+              }
             });
           } catch (netErr) {
             throw new Error('网络请求失败，请检查网络连接后重试');
@@ -4635,51 +4641,81 @@
           }
         });
 
-        // 4. Push updated index.html to GitHub (with retry on SHA mismatch)
-        async function pushToGithub(currentSha, attempt) {
-          var putResp;
-          try {
-            putResp = await fetch(apiBase + '/index.html', {
-              method: 'PUT',
+        // 4. Push updated index.html via Git Data API (bypasses SHA mismatch issue entirely)
+        async function pushToGithub(fileSha, updatedHtml) {
+          var gitApiBase = 'https://api.github.com/repos/' + owner + '/' + repo + '/git';
+          var contentB64 = btoa(unescape(encodeURIComponent(updatedHtml)));
+
+          // Helper for Git API calls
+          async function gitApi(method, path, body) {
+            var opts = {
+              method: method,
               mode: 'cors',
               headers: {
                 'Authorization': 'token ' + token,
                 'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                message: 'update website content from editor',
-                content: btoa(unescape(encodeURIComponent(html))),
-                sha: currentSha,
-                branch: branch
-              })
-            });
-          } catch (netErr) {
-            throw new Error('上传失败，请检查网络连接后重试');
-          }
-          if (!putResp.ok && attempt < 2) {
-            var errData = await putResp.json().catch(function() { return {}; });
-            var errMsg = errData.message || '';
-            // SHA mismatch = file changed on server, re-fetch and retry
-            if (errMsg.indexOf('does not match') !== -1 || putResp.status === 409) {
-              console.log('SHA mismatch, re-fetching latest SHA and retrying...');
-              var retryResp = await ghFetch(apiBase + '/index.html?ref=' + branch);
-              if (retryResp.ok) {
-                var retryInfo = await retryResp.json();
-                return pushToGithub(retryInfo.sha, attempt + 1);
               }
+            };
+            if (body) opts.body = JSON.stringify(body);
+            var r;
+            try {
+              r = await fetch(gitApiBase + path, opts);
+            } catch (e) {
+              throw new Error('网络请求失败，请检查网络连接后重试');
             }
-            throw new Error(errMsg || '保存失败 (' + putResp.status + ')');
+            if (!r.ok) {
+              var d = await r.json().catch(function() { return {}; });
+              throw new Error(d.message || 'Git API错误 (' + r.status + ')');
+            }
+            return r.json();
           }
-          if (!putResp.ok) {
-            var errData2 = await putResp.json().catch(function() { return {}; });
-            throw new Error(errData2.message || '保存失败 (' + putResp.status + ')');
-          }
-          return putResp.json();
+
+          // Step 1: Get current branch ref → commit SHA
+          var refData = await gitApi('GET', '/refs/heads/' + branch);
+          var commitSha = refData.object.sha;
+
+          // Step 2: Get commit → tree SHA
+          var commitData = await gitApi('GET', '/commits/' + commitSha);
+          var treeSha = commitData.tree.sha;
+
+          // Step 3: Create blob with new file content
+          var blobData = await gitApi('POST', '/blobs', {
+            content: contentB64,
+            encoding: 'base64'
+          });
+
+          // Step 4: Create new tree with updated index.html
+          var treeData = await gitApi('POST', '/trees', {
+            base_tree: treeSha,
+            tree: [{
+              path: 'index.html',
+              mode: '100644',
+              type: 'blob',
+              sha: blobData.sha
+            }]
+          });
+
+          // Step 5: Create new commit
+          var newCommit = await gitApi('POST', '/commits', {
+            message: 'update website content from editor',
+            tree: treeData.sha,
+            parents: [commitSha]
+          });
+
+          // Step 6: Update branch ref to new commit
+          await gitApi('PATCH', '/refs/heads/' + branch, {
+            sha: newCommit.sha
+          });
+
+          return {
+            html_url: 'https://github.com/' + owner + '/' + repo + '/commit/' + newCommit.sha,
+            sha: newCommit.sha
+          };
         }
 
-        var result = await pushToGithub(sha, 1);
+        var result = await pushToGithub(sha, html);
         showFeedback(
-          '保存成功！<a href="' + result.commit.html_url + '" target="_blank">查看提交 →</a>',
+          '保存成功！<a href="' + result.html_url + '" target="_blank">查看提交 →</a>',
           'success', 8000
         );
 
