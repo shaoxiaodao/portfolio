@@ -4613,33 +4613,20 @@
           });
         }
 
-        // 2c. CRITICAL: Update the works array in index.html's JavaScript source.
-        // Card titles/categories are NOT in static HTML (data-editable="title-N" doesn't
-        // exist in index.html). Cards are rendered dynamically from the works array.
-        // So we must modify the JavaScript source code directly.
-        function escapeForJsString(s) {
-          return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '');
-        }
-        works.forEach(function(w, i) {
-          // title is preceded by "id:N, title:"
-          html = html.replace(
-            new RegExp('(id:\\s*' + (i + 1) + ',\\s*title:\\s*")[^"]*(")'),
-            '$1' + escapeForJsString(w.title || '') + '$2'
-          );
-          // categoryName is preceded by 'category:"xxx", categoryName:"'
-          html = html.replace(
-            new RegExp('(category:\\s*"' + w.category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '",\\s*categoryName:\\s*")[^"]*(")'),
-            '$1' + escapeForJsString(w.categoryName || '') + '$2'
-          );
-          // desc, client, year, scope — each preceded by their key name and a colon+quote
-          ['desc', 'client', 'year', 'scope'].forEach(function(field) {
-            var val = w[field] || '';
-            html = html.replace(
-              new RegExp('(' + field + ':\\s*")[^"]*(")'),
-              '$1' + escapeForJsString(val) + '$2'
-            );
-          });
+        // 2c. CRITICAL: Replace the entire works array in index.html's JS source.
+        // Card titles/categories are NOT in static HTML — cards are rendered dynamically
+        // from the works array. We must replace the array in the JS source code directly.
+        var jsArrayLines = works.map(function(w) {
+          var esc = function(s) { return (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, ''); };
+          return '{ id:' + (w.id || 0) + ', title:"' + esc(w.title) + '", category:"' + esc(w.category) +
+            '", categoryName:"' + esc(w.categoryName) + '", url:"' + esc(w.url) +
+            '", img:placeholderImgs[' + ((w.id || 1) - 1) + '],\n' +
+            '        desc:"' + esc(w.desc) + '",\n' +
+            '        client:"' + esc(w.client) + '", year:"' + esc(w.year) +
+            '", scope:"' + esc(w.scope) + '" }';
         });
+        var newArrayStr = 'const works = [\n      ' + jsArrayLines.join(',\n      ') + '\n    ];';
+        html = html.replace(/const\s+works\s*=\s*\[[\s\S]*?\];/, newArrayStr);
 
         // 2d. Update email href
         var emailEl = document.querySelector('[data-editable="contact-email-value"]');
