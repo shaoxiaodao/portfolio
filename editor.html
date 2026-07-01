@@ -4515,15 +4515,27 @@
         var branch = 'main';
         var apiBase = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents';
 
-        // 1. Fetch current index.html from GitHub (cache-bust with timestamp)
-        var getResp = await fetch(apiBase + '/index.html?ref=' + branch + '&_t=' + Date.now(), {
-          cache: 'no-store',
-          headers: {
-            'Authorization': 'token ' + token,
-            'Accept': 'application/vnd.github.v3+json',
-            'Cache-Control': 'no-cache, no-store'
+        // Helper: simple fetch with auth (minimal headers to avoid CORS preflight)
+        async function ghFetch(url) {
+          var resp;
+          try {
+            resp = await fetch(url, {
+              headers: {
+                'Authorization': 'token ' + token,
+                'Accept': 'application/vnd.github.v3+json'
+              }
+            });
+          } catch (netErr) {
+            throw new Error('网络请求失败，请检查网络连接后重试');
           }
-        });
+          if (resp.status === 401) {
+            throw new Error('登录已过期，请重新登录后再试');
+          }
+          return resp;
+        }
+
+        // 1. Fetch current index.html from GitHub
+        var getResp = await ghFetch(apiBase + '/index.html?ref=' + branch);
         if (!getResp.ok) throw new Error('获取文件失败 (' + getResp.status + ')');
         var fileInfo = await getResp.json();
         var sha = fileInfo.sha;
@@ -4630,14 +4642,7 @@
             // SHA mismatch = file changed on server, re-fetch and retry
             if (errMsg.indexOf('does not match') !== -1 || putResp.status === 409) {
               console.log('SHA mismatch, re-fetching latest SHA and retrying...');
-              var retryResp = await fetch(apiBase + '/index.html?ref=' + branch + '&_t=' + Date.now(), {
-                cache: 'no-store',
-                headers: {
-                  'Authorization': 'token ' + token,
-                  'Accept': 'application/vnd.github.v3+json',
-                  'Cache-Control': 'no-cache, no-store'
-                }
-              });
+              var retryResp = await ghFetch(apiBase + '/index.html?ref=' + branch);
               if (retryResp.ok) {
                 var retryInfo = await retryResp.json();
                 return pushToGithub(retryInfo.sha, attempt + 1);
