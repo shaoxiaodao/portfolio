@@ -2482,7 +2482,6 @@
     const detailClose = document.getElementById('detailClose');
 
     function openDetail(index) {
-      if (editorMode) return; // In editor mode, don't navigate - let editor handle clicks
       const w = works[index];
       if (!w) return; // Guard against invalid index
 
@@ -3039,6 +3038,8 @@
     // Click on editable text
     document.addEventListener('click', (e) => {
       if (!editorMode) return;
+      // If detail overlay is open and click is NOT inside it (came from card behind), skip
+      if (detailOverlay.classList.contains('active') && !detailOverlay.contains(e.target)) return;
       const editable = e.target.closest('[data-editable]');
       if (editable) {
         // If switching from another editable, finalize it
