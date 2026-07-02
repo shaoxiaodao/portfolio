@@ -2562,6 +2562,20 @@
       // Apply saved editor data to the newly rendered detail content
       applySavedDataToScope(detailContent);
 
+      // Sync works array from rendered detail content — ensures w.title etc.
+      // match whatever applySavedDataToScope restored (prevents divergence
+      // between in-memory works array and displayed detail text).
+      var renderedDetailTitle = detailContent.querySelector('[data-editable="detail-title-' + index + '"]');
+      if (renderedDetailTitle) w.title = renderedDetailTitle.textContent;
+      var renderedDetailDesc = detailContent.querySelector('[data-editable="detail-desc-' + index + '"]');
+      if (renderedDetailDesc) w.desc = renderedDetailDesc.textContent;
+      var renderedDetailClient = detailContent.querySelector('[data-editable="detail-client-' + index + '"]');
+      if (renderedDetailClient) w.client = renderedDetailClient.textContent;
+      var renderedDetailYear = detailContent.querySelector('[data-editable="detail-year-' + index + '"]');
+      if (renderedDetailYear) w.year = renderedDetailYear.textContent;
+      var renderedDetailScope = detailContent.querySelector('[data-editable="detail-scope-' + index + '"]');
+      if (renderedDetailScope) w.scope = renderedDetailScope.textContent;
+
       // Category dropdown change handler (editor mode only)
       var catSelect = detailContent.querySelector('.detail-category-select');
       console.log('[openDetail] catSelect found:', !!catSelect, 'innerHTML snippet:', detailContent.innerHTML.substring(0, 300));
@@ -4281,27 +4295,38 @@
     function syncWorksFromDOM() {
       const detailIsActive = detailOverlay.classList.contains('active');
       works.forEach((w, i) => {
-        // Card text (always read — cards are always in DOM)
-        const catEl = document.querySelector('[data-editable="cat-' + i + '"]');
-        if (catEl) w.categoryName = catEl.textContent;
-        const titleEl = document.querySelector('[data-editable="title-' + i + '"]');
-        if (titleEl) w.title = titleEl.textContent;
-
-        // Card cover image
+        // Card cover image (always sync regardless of detail state)
         const coverContainer = document.querySelector('[data-uploadable="cover"][data-img-id="card-' + i + '"]');
         if (coverContainer) {
           const coverImg = coverContainer.querySelector('img');
           if (coverImg && coverImg.src) w.img = coverImg.src;
         }
 
-        // Detail page text fields — only read when detail overlay is active.
-        // When closed, detail elements remain in DOM with stale values that would
-        // incorrectly override the card values we just read above.
         if (detailIsActive) {
+          // Detail overlay is open — detail values are the SOURCE OF TRUTH.
+          // Read from detail elements FIRST; skip card reads to avoid
+          // overwriting fresh detail values with stale card DOM text.
           const detailTitle = document.querySelector('[data-editable="detail-title-' + i + '"]');
-          if (detailTitle) w.title = detailTitle.textContent;
-          const detailCat = document.querySelector('[data-editable="detail-cat-' + i + '"]');
-          if (detailCat) w.categoryName = detailCat.textContent;
+          if (detailTitle) {
+            w.title = detailTitle.textContent;
+            // Keep card DOM in sync
+            const cardTitle = document.querySelector('[data-editable="title-' + i + '"]');
+            if (cardTitle) cardTitle.textContent = w.title;
+          }
+          const detailCatSelect = document.querySelector('.detail-category-select[data-detail-cat-index="' + i + '"]');
+          if (detailCatSelect) {
+            w.category = detailCatSelect.value;
+            w.categoryName = detailCatSelect.options[detailCatSelect.selectedIndex].text;
+            const cardCat = document.querySelector('[data-editable="cat-' + i + '"]');
+            if (cardCat) cardCat.textContent = w.categoryName;
+          } else {
+            const detailCat = document.querySelector('[data-editable="detail-cat-' + i + '"]');
+            if (detailCat) {
+              w.categoryName = detailCat.textContent;
+              const cardCat = document.querySelector('[data-editable="cat-' + i + '"]');
+              if (cardCat) cardCat.textContent = w.categoryName;
+            }
+          }
           const detailDesc = document.querySelector('[data-editable="detail-desc-' + i + '"]');
           if (detailDesc) w.desc = detailDesc.textContent;
           const detailClient = document.querySelector('[data-editable="detail-client-' + i + '"]');
@@ -4310,6 +4335,12 @@
           if (detailYear) w.year = detailYear.textContent;
           const detailScope = document.querySelector('[data-editable="detail-scope-' + i + '"]');
           if (detailScope) w.scope = detailScope.textContent;
+        } else {
+          // Detail is closed — read from card DOM as source of truth
+          const catEl = document.querySelector('[data-editable="cat-' + i + '"]');
+          if (catEl) w.categoryName = catEl.textContent;
+          const titleEl = document.querySelector('[data-editable="title-' + i + '"]');
+          if (titleEl) w.title = titleEl.textContent;
         }
       });
     }
@@ -4348,6 +4379,38 @@
           color: el.style.color || ''
         };
       });
+
+      // Cross-sync: when detail overlay is NOT active, detail elements are not in DOM,
+      // so they won't be captured above. Load existing saved data, merge in any
+      // entries not currently in DOM, and update detail-title/detail-cat entries
+      // to match the current works array (which is the source of truth).
+      var detailIsActiveNow = detailOverlay.classList.contains('active');
+      if (!detailIsActiveNow) {
+        try {
+          var existingRaw = localStorage.getItem('shaohua_editor_data');
+          if (existingRaw) {
+            var existing = JSON.parse(existingRaw);
+            if (existing && typeof existing === 'object') {
+              // Preserve entries not currently in DOM (e.g. detail elements)
+              Object.keys(existing).forEach(function(k) {
+                if (!data[k]) data[k] = existing[k];
+              });
+            }
+          }
+        } catch(e) {}
+        // Update detail entries to match works array (source of truth)
+        works.forEach(function(w, i) {
+          var dtKey = 'detail-title-' + i;
+          if (data[dtKey]) data[dtKey].text = w.title;
+          var dcKey = 'detail-cat-' + i;
+          if (data[dcKey]) data[dcKey].text = w.categoryName;
+          // Also keep card entries in sync
+          var tKey = 'title-' + i;
+          if (data[tKey]) data[tKey].text = w.title;
+          var cKey = 'cat-' + i;
+          if (data[cKey]) data[cKey].text = w.categoryName;
+        });
+      }
       // Collect images with size tracking
       let imageCount = 0;
       const BUDGET = 4 * 1024 * 1024; // 4MB budget for all images
@@ -4416,6 +4479,28 @@
               color: el.style.color || ''
             };
           });
+          // Cross-sync detail entries when detail is not active
+          if (!detailOverlay.classList.contains('active')) {
+            try {
+              var exRaw = localStorage.getItem('shaohua_editor_data');
+              if (exRaw) {
+                var ex = JSON.parse(exRaw);
+                if (ex && typeof ex === 'object') {
+                  Object.keys(ex).forEach(function(k) { if (!textOnly[k]) textOnly[k] = ex[k]; });
+                }
+              }
+            } catch(exErr) {}
+            works.forEach(function(w, i) {
+              var dtK = 'detail-title-' + i;
+              if (textOnly[dtK]) textOnly[dtK].text = w.title;
+              var dcK = 'detail-cat-' + i;
+              if (textOnly[dcK]) textOnly[dcK].text = w.categoryName;
+              var tK = 'title-' + i;
+              if (textOnly[tK]) textOnly[tK].text = w.title;
+              var cK = 'cat-' + i;
+              if (textOnly[cK]) textOnly[cK].text = w.categoryName;
+            });
+          }
           localStorage.setItem('shaohua_editor_data', JSON.stringify(textOnly));
           if (works.length > 0) {
             localStorage.setItem('shaohua_works', JSON.stringify(works));
