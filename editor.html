@@ -2482,6 +2482,7 @@
     const detailClose = document.getElementById('detailClose');
 
     function openDetail(index) {
+      console.log('[openDetail] called with index:', index, 'editorMode:', editorMode, 'category:', works[index] && works[index].category);
       const w = works[index];
       if (!w) return; // Guard against invalid index
 
@@ -2565,6 +2566,7 @@
 
       // Category dropdown change handler (editor mode only)
       var catSelect = detailContent.querySelector('.detail-category-select');
+      console.log('[openDetail] catSelect found:', !!catSelect, 'innerHTML snippet:', detailContent.innerHTML.substring(0, 300));
       if (catSelect) {
         catSelect.addEventListener('change', function() {
           var idx = parseInt(this.getAttribute('data-detail-cat-index'));
