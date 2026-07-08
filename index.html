@@ -1511,7 +1511,7 @@
       }
 
       // Build gallery with varied layout
-      const galleryImgs = [w.img, ...placeholderImgs.filter(p => p !== w.img).slice(0, 5)];
+      const galleryImgs = (w.gallery && w.gallery.length > 0) ? w.gallery : [w.img, ...placeholderImgs.filter(p => p !== w.img).slice(0, 5)];
 
       detailContent.innerHTML = `
         <div class="detail-header">
