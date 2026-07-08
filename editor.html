@@ -2437,7 +2437,7 @@
 
     function createCardHTML(w, i) {
       return `<article class="portfolio-card" data-component="work-card" data-category="${w.category}" data-index="${i}" style="transition-delay:${(i % 8) * 0.06}s">
-          <div style="display:block;text-decoration:none;color:inherit;height:100%;width:100%;cursor:pointer" onclick="openDetail(${i})">
+          <div style="display:block;text-decoration:none;color:inherit;height:100%;width:100%;cursor:pointer" onclick="if(typeof editorMode!=='undefined'&&editorMode){event.stopPropagation();return false;}openDetail(${i})">
             <div class="card-image-wrapper" data-uploadable="cover" data-img-id="card-${i}">
               <img src="${w.img}" alt="${w.title}" class="card-image" loading="lazy" onerror="this.src='${fallbackSvg(w.title)}'">
               <span class="upload-hint">点击替换封面</span>
