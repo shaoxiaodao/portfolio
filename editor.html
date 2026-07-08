@@ -4633,8 +4633,57 @@
     let isGithubSaving = false;
 
     function replaceEditableInHtml(html, key, newContent) {
+      // Find the opening tag with data-editable="key"
+      var escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      var openRe = new RegExp('<[^>]*data-editable="' + escapedKey + '"[^>]*>');
+      var openMatch = html.match(openRe);
+      if (!openMatch) return html;
+
+      var openTag = openMatch[0];
+      var startIdx = html.indexOf(openTag);
+      var contentStart = startIdx + openTag.length;
+
+      // Determine the tag name for finding the matching close tag
+      var tagNameMatch = openTag.match(/^<(\w+)/);
+      if (!tagNameMatch) return html;
+      var tagName = tagNameMatch[1].toLowerCase();
+
+      // Walk through HTML counting nested open/close tags of the same type
+      var depth = 1;
+      var pos = contentStart;
+      while (pos < html.length && depth > 0) {
+        var nextOpen = html.indexOf('<' + tagName, pos);
+        var nextClose = html.indexOf('</' + tagName, pos);
+
+        if (nextClose === -1) break; // no more close tags
+
+        if (nextOpen !== -1 && nextOpen < nextClose) {
+          // Check it's a real open tag (not a substring match like <header vs <head)
+          var charAfter = html.charAt(nextOpen + tagName.length + 1);
+          if (charAfter === ' ' || charAfter === '>' || charAfter === '/' || charAfter === '\n' || charAfter === '\r' || charAfter === '\t') {
+            // Check for self-closing
+            var openTagEnd = html.indexOf('>', nextOpen);
+            if (openTagEnd !== -1 && html.charAt(openTagEnd - 1) !== '/') {
+              depth++;
+            }
+            pos = openTagEnd + 1;
+          } else {
+            pos = nextOpen + tagName.length + 1;
+          }
+        } else {
+          depth--;
+          if (depth === 0) {
+            var closeTagEnd = html.indexOf('>', nextClose);
+            var closeTag = html.substring(nextClose, closeTagEnd + 1);
+            return html.substring(0, contentStart) + newContent + html.substring(nextClose);
+          }
+          pos = html.indexOf('>', nextClose) + 1;
+        }
+      }
+
+      // Fallback: simple regex (shouldn't reach here for well-formed HTML)
       var re = new RegExp(
-        '(<[^>]*data-editable="' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*>)([\\s\\S]*?)(</[^>]+>)'
+        '(<[^>]*data-editable="' + escapedKey + '"[^>]*>)([\\s\\S]*?)(</[^>]+>)'
       );
       return html.replace(re, '$1' + newContent + '$3');
     }
@@ -4688,7 +4737,7 @@
 
         // 2. Apply text edits via safe string replacement (NO DOMParser)
         // Rich-text elements that need innerHTML (preserves <p> tags etc.)
-        var HTML_KEYS = ['profile-bio'];
+        var HTML_KEYS = ['profile-bio', 'brand'];
 
         // Keys where we read from works array instead of DOM (DOM may be stale)
         var detailOverlayActive = detailOverlay.classList.contains('active');
