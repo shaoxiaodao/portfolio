@@ -2503,8 +2503,10 @@
         }
       }
 
-      // Build gallery with varied layout
-      const galleryImgs = [w.img, ...placeholderImgs.filter(p => p !== w.img).slice(0, 5)];
+      // Build gallery: prefer saved gallery images, fall back to cover + placeholders
+      const galleryImgs = (w.gallery && w.gallery.length > 0)
+        ? w.gallery
+        : [w.img, ...placeholderImgs.filter(p => p !== w.img).slice(0, 5)];
 
       detailContent.innerHTML = `
         <div class="detail-header">
@@ -2625,6 +2627,15 @@
               if (cardCat) cardCat.textContent = dc.textContent;
               w.categoryName = dc.textContent;
             }
+          }
+          // Sync gallery images to works array
+          var galleryContainer = document.querySelector('[data-uploadable="detail"][data-img-id="gallery-' + i + '"]');
+          if (galleryContainer) {
+            var gallerySrcs = [];
+            galleryContainer.querySelectorAll('.detail-gallery-img').forEach(function(img) {
+              if (img.src) gallerySrcs.push(img.src);
+            });
+            if (gallerySrcs.length > 0) w.gallery = gallerySrcs;
           }
         });
         saveEditorData();
@@ -4335,6 +4346,15 @@
           if (detailYear) w.year = detailYear.textContent;
           const detailScope = document.querySelector('[data-editable="detail-scope-' + i + '"]');
           if (detailScope) w.scope = detailScope.textContent;
+          // Sync gallery images
+          const galleryEl = document.querySelector('[data-uploadable="detail"][data-img-id="gallery-' + i + '"]');
+          if (galleryEl) {
+            const gallerySrcs = [];
+            galleryEl.querySelectorAll('.detail-gallery-img').forEach(function(img) {
+              if (img.src) gallerySrcs.push(img.src);
+            });
+            if (gallerySrcs.length > 0) w.gallery = gallerySrcs;
+          }
         } else {
           // Detail is closed — read from card DOM as source of truth
           const catEl = document.querySelector('[data-editable="cat-' + i + '"]');
@@ -4462,7 +4482,21 @@
         const jsonStr = JSON.stringify(data);
         localStorage.setItem('shaohua_editor_data', jsonStr);
         if (works.length > 0) {
-          localStorage.setItem('shaohua_works', JSON.stringify(works));
+          // Strip gallery data from works before saving to shaohua_works
+          // (gallery base64 URLs are huge and would exceed localStorage quota).
+          // Gallery data is persisted via shaohua_editor_data (detail_img_gallery-N)
+          // and written to GitHub's index.html via the works array serialization.
+          var savedGalleries = works.map(function(w) { return w.gallery; });
+          works.forEach(function(w) { delete w.gallery; });
+          try {
+            localStorage.setItem('shaohua_works', JSON.stringify(works));
+          } catch(worksErr) {
+            console.warn('Could not save works:', worksErr);
+          }
+          // Restore galleries in memory
+          works.forEach(function(w, i) {
+            if (savedGalleries[i]) w.gallery = savedGalleries[i];
+          });
         }
         console.log('Editor data saved,', imageCount, 'images,', Math.round(jsonStr.length / 1024), 'KB');
       } catch(e) {
@@ -4503,7 +4537,10 @@
           }
           localStorage.setItem('shaohua_editor_data', JSON.stringify(textOnly));
           if (works.length > 0) {
-            localStorage.setItem('shaohua_works', JSON.stringify(works));
+            var savedGal2 = works.map(function(w) { return w.gallery; });
+            works.forEach(function(w) { delete w.gallery; });
+            try { localStorage.setItem('shaohua_works', JSON.stringify(works)); } catch(we) {}
+            works.forEach(function(w, i) { if (savedGal2[i]) w.gallery = savedGal2[i]; });
           }
           showFeedback('文字已保存，图片因空间不足未保存（保存到GitHub时图片仍会写入）', 'error', 6000);
         } catch(e2) {
@@ -4792,12 +4829,17 @@
         // from the works array. We must replace the array in the JS source code directly.
         var jsArrayLines = works.map(function(w) {
           var esc = function(s) { return (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, ''); };
+          var galleryStr = '';
+          if (w.gallery && w.gallery.length > 0) {
+            var escapedUrls = w.gallery.map(function(url) { return '"' + esc(url) + '"'; });
+            galleryStr = ',\n        gallery:[' + escapedUrls.join(',') + ']';
+          }
           return '{ id:' + (w.id || 0) + ', title:"' + esc(w.title) + '", category:"' + esc(w.category) +
             '", categoryName:"' + esc(w.categoryName) + '", url:"' + esc(w.url) +
             '", img:placeholderImgs[' + ((w.id || 1) - 1) + '],\n' +
             '        desc:"' + esc(w.desc) + '",\n' +
             '        client:"' + esc(w.client) + '", year:"' + esc(w.year) +
-            '", scope:"' + esc(w.scope) + '" }';
+            '", scope:"' + esc(w.scope) + '"' + galleryStr + ' }';
         });
         var newArrayStr = 'const works = [\n      ' + jsArrayLines.join(',\n      ') + '\n    ];';
         html = html.replace(/const\s+works\s*=\s*\[[\s\S]*?\];/, newArrayStr);
