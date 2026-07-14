@@ -4079,7 +4079,7 @@
       sortWorks = [];
       works.forEach((w, i) => {
         if (sortFilter === 'all' || w.category === sortFilter) {
-          sortWorks.push({ ...w });
+          sortWorks.push({ ...w, sortIndex: i });
           sortIndices.push(i);
         }
       });
@@ -4122,9 +4122,115 @@
         return;
       }
 
-      // Apply reordered filtered items back to works array at their original positions
-      for (let i = 0; i < sortIndices.length; i++) {
-        works[sortIndices[i]] = Object.assign({}, sortWorks[i]);
+      // --- Step 1: Snapshot current DOM state for each card position ---
+      // We must capture DOM values BEFORE reordering, because after rerenderGrid
+      // the indices will change and old keys will point to wrong cards.
+      var oldSnapshots = {};
+      for (var si = 0; si < sortIndices.length; si++) {
+        var pos = sortIndices[si];
+        var snap = { pos: pos };
+
+        var titleEl = document.querySelector('[data-editable="title-' + pos + '"]');
+        snap.title = titleEl ? titleEl.textContent : (works[pos] ? works[pos].title : '');
+        snap.titleStyle = titleEl ? { ff: titleEl.style.fontFamily, fs: titleEl.style.fontSize, c: titleEl.style.color } : {};
+
+        var catEl = document.querySelector('[data-editable="cat-' + pos + '"]');
+        snap.cat = catEl ? catEl.textContent : (works[pos] ? works[pos].categoryName : '');
+        snap.catStyle = catEl ? { ff: catEl.style.fontFamily, fs: catEl.style.fontSize, c: catEl.style.color } : {};
+
+        var coverEl = document.querySelector('[data-uploadable="cover"][data-img-id="card-' + pos + '"] img');
+        snap.coverSrc = (coverEl && coverEl.src) ? coverEl.src : '';
+
+        snap.gallery = works[pos] ? works[pos].gallery : null;
+        snap.work = Object.assign({}, works[pos]);
+
+        oldSnapshots[pos] = snap;
+      }
+
+      // --- Step 2: Compute new positions from sort order ---
+      // sortIndices[i] = original works-array position of the item now at sort-grid position i
+      // sortWorks[i] = the item at sort-grid position i
+      // So: new position sortIndices[i] gets data from old position sortWorks[i].sortIndex
+      var newPosToOldPos = {};
+      for (var j = 0; j < sortIndices.length; j++) {
+        var newPos = sortIndices[j];
+        var oldPos = sortWorks[j].sortIndex;
+        newPosToOldPos[newPos] = oldPos;
+      }
+
+      // --- Step 3: Remap shaohua_editor_data keys ---
+      try {
+        var raw = localStorage.getItem('shaohua_editor_data');
+        if (raw) {
+          var ed = JSON.parse(raw);
+          if (ed && typeof ed === 'object') {
+            var remapped = {};
+            for (var np in newPosToOldPos) {
+              var op = newPosToOldPos[np];
+              if (np == op) {
+                // Position didn't change — keep all keys as-is
+                var allKeys = Object.keys(ed);
+                for (var ki = 0; ki < allKeys.length; ki++) {
+                  var k = allKeys[ki];
+                  if (k.indexOf('-' + np) === k.length - ('-' + np).length && !remapped[k]) {
+                    remapped[k] = ed[k];
+                  }
+                }
+                continue;
+              }
+              // Remap position-specific keys from old to new
+              var oldSuffix = '-' + op;
+              var newSuffix = '-' + np;
+              var keys = Object.keys(ed);
+              for (var ki2 = 0; ki2 < keys.length; ki2++) {
+                var key = keys[ki2];
+                if (key.length > oldSuffix.length &&
+                    key.substring(key.length - oldSuffix.length) === oldSuffix) {
+                  var prefix = key.substring(0, key.length - oldSuffix.length);
+                  remapped[prefix + newSuffix] = ed[key];
+                }
+              }
+            }
+            // Keep keys that don't match any sort-index pattern (global settings)
+            var allEdKeys = Object.keys(ed);
+            for (var ei = 0; ei < allEdKeys.length; ei++) {
+              var ek = allEdKeys[ei];
+              if (!remapped[ek]) {
+                var matchedIdx = -1;
+                for (var ci = 0; ci < sortIndices.length; ci++) {
+                  var suf = '-' + sortIndices[ci];
+                  if (ek.length > suf.length && ek.substring(ek.length - suf.length) === suf) {
+                    matchedIdx = sortIndices[ci];
+                    break;
+                  }
+                }
+                if (matchedIdx === -1) {
+                  remapped[ek] = ed[ek];
+                }
+              }
+            }
+            localStorage.setItem('shaohua_editor_data', JSON.stringify(remapped));
+          }
+        }
+      } catch(e) {
+        console.warn('[Sort] Failed to remap editor data:', e);
+      }
+
+      // --- Step 4: Reorder works array using snapshots ---
+      for (var ri = 0; ri < sortIndices.length; ri++) {
+        var targetPos = sortIndices[ri];
+        var sourceOldPos = sortWorks[ri].sortIndex;
+        var srcSnap = oldSnapshots[sourceOldPos];
+        if (srcSnap) {
+          works[targetPos] = Object.assign({}, srcSnap.work);
+          // Apply current DOM values (may be more up-to-date than works array)
+          works[targetPos].title = srcSnap.title;
+          works[targetPos].categoryName = srcSnap.cat;
+          if (srcSnap.coverSrc) works[targetPos].img = srcSnap.coverSrc;
+          if (srcSnap.gallery) works[targetPos].gallery = srcSnap.gallery;
+        } else {
+          works[targetPos] = Object.assign({}, sortWorks[ri]);
+        }
       }
 
       // Close overlay immediately
