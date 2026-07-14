@@ -4539,7 +4539,7 @@
       }
       // Collect images with size tracking
       let imageCount = 0;
-      const BUDGET = 4 * 1024 * 1024; // 4MB budget for all images
+      const BUDGET = 3 * 1024 * 1024; // 3MB budget for images (leaves ~2MB for text data & JSON overhead)
       let totalImgSize = 0;
       const imageEntries = [];
       document.querySelectorAll('[data-uploadable]').forEach(el => {
@@ -4775,6 +4775,12 @@
     /* ===== GITHUB SAVE (SAFE — string replacement, no DOMParser) ===== */
     let isGithubSaving = false;
 
+    // Escape $ in replacement strings — prevents String.replace from
+    // interpreting $&, $1-$9, $', $` as special back-reference patterns.
+    function safeReplace(str, re, replacement) {
+      return str.replace(re, replacement.replace(/\$/g, '$$$$'));
+    }
+
     function replaceEditableInHtml(html, key, newContent) {
       // Find the opening tag with data-editable="key"
       var escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -4828,7 +4834,7 @@
       var re = new RegExp(
         '(<[^>]*data-editable="' + escapedKey + '"[^>]*>)([\\s\\S]*?)(</[^>]+>)'
       );
-      return html.replace(re, '$1' + newContent + '$3');
+      return safeReplace(html, re, '$1' + newContent + '$3');
     }
 
     githubSaveBtn.addEventListener('click', async () => {
@@ -4948,13 +4954,39 @@
             '", scope:"' + esc(w.scope) + '"' + galleryStr + ' }';
         });
         var newArrayStr = 'const works = [\n      ' + jsArrayLines.join(',\n      ') + '\n    ];';
-        html = html.replace(/const\s+works\s*=\s*\[[\s\S]*?\];/, newArrayStr);
+        // Use bracket-depth counter to find exact end of works array (safe against ]; in strings)
+        var worksStart = html.search(/const\s+works\s*=\s*\[/);
+        if (worksStart !== -1) {
+          var bracketStart = html.indexOf('[', worksStart);
+          var depth = 1;
+          var inStr = false;
+          var strCh = '';
+          var pos = bracketStart + 1;
+          while (pos < html.length && depth > 0) {
+            var ch = html.charAt(pos);
+            if (inStr) {
+              if (ch === '\\') { pos += 2; continue; }
+              if (ch === strCh) { inStr = false; }
+            } else {
+              if (ch === '"' || ch === "'" || ch === '`') { inStr = true; strCh = ch; }
+              else if (ch === '[') { depth++; }
+              else if (ch === ']') { depth--; }
+            }
+            pos++;
+          }
+          if (depth === 0) {
+            html = html.substring(0, worksStart) + newArrayStr + html.substring(pos);
+          } else {
+            // Fallback: use safeReplace with the old regex
+            html = safeReplace(html, /const\s+works\s*=\s*\[[\s\S]*?\];/, newArrayStr);
+          }
+        }
 
         // 2d. Update email href
         var emailEl = document.querySelector('[data-editable="contact-email-value"]');
         if (emailEl) {
           var emailAddr = emailEl.textContent.trim();
-          html = html.replace(/href="mailto:[^"]*"/, 'href="mailto:' + emailAddr + '"');
+          html = safeReplace(html, /href="mailto:[^"]*"/, 'href="mailto:' + emailAddr + '"');
         }
 
         // 3. Apply image edits
@@ -4968,12 +5000,12 @@
             var re = new RegExp(
               '(<[^>]*data-img-id="card-' + idx + '"[^>]*>[\\s\\S]*?<img[^>]*src=")[^"]*(")'
             );
-            html = html.replace(re, '$1' + img.src + '$2');
+            html = safeReplace(html, re, '$1' + img.src + '$2');
           } else if (type === 'cover' && imgId === 'portrait') {
             var re2 = new RegExp(
               '(<[^>]*data-img-id="portrait"[^>]*>[\\s\\S]*?<img[^>]*src=")[^"]*(")'
             );
-            html = html.replace(re2, '$1' + img.src + '$2');
+            html = safeReplace(html, re2, '$1' + img.src + '$2');
           }
         });
 
