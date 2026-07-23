@@ -2360,7 +2360,12 @@
                  .replace(/<object[\s\S]*?<\/object>/gi, '')
                  .replace(/<embed[^>]*>/gi, '')
                  .replace(/<form[\s\S]*?<\/form>/gi, '')
-                 .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+                 .replace(/<style[\s\S]*?<\/style>/gi, '')
+                 .replace(/<link[^>]*>/gi, '')
+                 .replace(/<meta[^>]*>/gi, '')
+                 .replace(/(\s|")on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '$1')
+                 .replace(/href\s*=\s*["']?\s*javascript:[^"'>\s]*/gi, 'href="#"')
+                 .replace(/src\s*=\s*["']?\s*javascript:[^"'>\s]*/gi, 'src=""');
     }
 
     function applySavedDataToScope(scope) {
@@ -2436,14 +2441,17 @@
     const fallbackSvg = (title) => `data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(title)}%3C/text%3E%3C/svg%3E`;
 
     function createCardHTML(w, i) {
-      return `<article class="portfolio-card" data-component="work-card" data-category="${w.category}" data-index="${i}" style="transition-delay:${(i % 8) * 0.06}s">
+      var safeTitle = escapeHtml(w.title || '');
+      var safeCatName = escapeHtml(w.categoryName || '');
+      var safeCat = escapeHtml(w.category || '');
+      return `<article class="portfolio-card" data-component="work-card" data-category="${safeCat}" data-index="${i}" style="transition-delay:${(i % 8) * 0.06}s">
           <div style="display:block;text-decoration:none;color:inherit;height:100%;width:100%;cursor:pointer" onclick="if(typeof editorMode!=='undefined'&&editorMode){event.stopPropagation();return false;}openDetail(${i})">
             <div class="card-image-wrapper" data-uploadable="cover" data-img-id="card-${i}">
-              <img src="${w.img}" alt="${w.title}" class="card-image" loading="lazy" onerror="this.src='${fallbackSvg(w.title)}'">
+              <img src="${w.img}" alt="${safeTitle}" class="card-image" loading="lazy" onerror="this.src='${fallbackSvg(w.title)}'">
               <span class="upload-hint">点击替换封面</span>
               <div class="card-overlay">
-                <span class="card-category" data-editable="cat-${i}">${w.categoryName}</span>
-                <h3 class="card-title" data-editable="title-${i}">${w.title}</h3>
+                <span class="card-category" data-editable="cat-${i}">${safeCatName}</span>
+                <h3 class="card-title" data-editable="title-${i}">${safeTitle}</h3>
               </div>
               <div class="card-arrow">
                 <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -2483,6 +2491,10 @@
 
     function openDetail(index) {
       console.log('[openDetail] called with index:', index, 'editorMode:', editorMode, 'category:', works[index] && works[index].category);
+      // If detail overlay is already open, close it first to sync & save current edits
+      if (detailOverlay.classList.contains('active')) {
+        closeDetail();
+      }
       const w = works[index];
       if (!w) return; // Guard against invalid index
 
@@ -2522,27 +2534,27 @@
             <option value="catalog" style="background:#2a2a2a;color:#fff"${w.category==='catalog'?' selected':''}>画册视觉</option>
             <option value="other" style="background:#2a2a2a;color:#fff"${w.category==='other'?' selected':''}>其他</option>
           </select>
-          <h1 class="detail-title" data-editable="detail-title-${index}">${w.title}</h1>
-          <p class="detail-desc" data-editable="detail-desc-${index}">${w.desc}</p>
+          <h1 class="detail-title" data-editable="detail-title-${index}">${escapeHtml(w.title)}</h1>
+          <p class="detail-desc" data-editable="detail-desc-${index}">${escapeHtml(w.desc)}</p>
           <div class="detail-meta">
             <div class="detail-meta-item">
               <span class="detail-meta-label">客户</span>
-              <span class="detail-meta-value" data-editable="detail-client-${index}">${w.client}</span>
+              <span class="detail-meta-value" data-editable="detail-client-${index}">${escapeHtml(w.client)}</span>
             </div>
             <div class="detail-meta-item">
               <span class="detail-meta-label">年份</span>
-              <span class="detail-meta-value" data-editable="detail-year-${index}">${w.year}</span>
+              <span class="detail-meta-value" data-editable="detail-year-${index}">${escapeHtml(w.year)}</span>
             </div>
             <div class="detail-meta-item">
               <span class="detail-meta-label">服务范围</span>
-              <span class="detail-meta-value" data-editable="detail-scope-${index}">${w.scope}</span>
+              <span class="detail-meta-value" data-editable="detail-scope-${index}">${escapeHtml(w.scope)}</span>
             </div>
           </div>
         </div>
         <div class="detail-gallery" data-uploadable="detail" data-img-id="gallery-${index}">
           <button class="detail-gallery-manage-btn">管理图片</button>
           ${galleryImgs.slice(0, 5).map((img, gi) => `
-            <img src="${img}" alt="${w.title} - ${gi + 1}" class="detail-gallery-img" style="aspect-ratio:16/9" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221200%22 height=%22675%22%3E%3Crect fill=%22%23111%22 width=%221200%22 height=%22675%22/%3E%3Ctext x=%22600%22 y=%22337%22 font-family=%22sans-serif%22 font-size=%2224%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(w.title)}%3C/text%3E%3C/svg%3E'">
+            <img src="${img}" alt="${escapeHtml(w.title)} - ${gi + 1}" class="detail-gallery-img" style="aspect-ratio:16/9" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221200%22 height=%22675%22%3E%3Crect fill=%22%23111%22 width=%221200%22 height=%22675%22/%3E%3Ctext x=%22600%22 y=%22337%22 font-family=%22sans-serif%22 font-size=%2224%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(w.title)}%3C/text%3E%3C/svg%3E'">
           `).join('')}
           <span class="upload-hint">点击图片单独替换，或点击「管理图片」批量编辑</span>
         </div>
@@ -2551,9 +2563,9 @@
           <div class="detail-related-grid">
             ${related.map((r, ri) => `
               <div class="detail-related-card" onclick="openDetail(${r.origIndex})">
-                <img src="${r.img}" alt="${r.title}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(r.title)}%3C/text%3E%3C/svg%3E'">
+                <img src="${r.img}" alt="${escapeHtml(r.title)}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22800%22 height=%22600%22%3E%3Crect fill=%22%23111%22 width=%22800%22 height=%22600%22/%3E%3Ctext x=%22400%22 y=%22300%22 font-family=%22sans-serif%22 font-size=%2220%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(r.title)}%3C/text%3E%3C/svg%3E'">
                 <div class="related-info">
-                  <div class="related-title">${r.title}</div>
+                  <div class="related-title">${escapeHtml(r.title)}</div>
                 </div>
               </div>
             `).join('')}
@@ -4523,7 +4535,7 @@
               });
             }
           }
-        } catch(e) {}
+        } catch(e) { console.warn('Failed to parse existing editor data for cross-sync:', e); }
         // Update detail entries to match works array (source of truth)
         works.forEach(function(w, i) {
           var dtKey = 'detail-title-' + i;
@@ -4575,14 +4587,26 @@
       // Sort: smallest images first (keep as many as possible within budget)
       imageEntries.sort((a, b) => a.size - b.size);
       let usedBudget = 0;
+      let droppedCount = 0;
       imageEntries.forEach(entry => {
         if (usedBudget + entry.size <= BUDGET) {
           data[entry.key] = entry.value;
           usedBudget += entry.size;
         } else {
+          droppedCount++;
           console.warn('Skipping image', entry.key, '- would exceed budget');
         }
       });
+      if (droppedCount > 0) {
+        console.warn(droppedCount + ' image(s) dropped due to localStorage budget limit');
+        try {
+          if (typeof showFeedback === 'function') {
+            showFeedback('存储空间不足，' + droppedCount + ' 张图片未保存。建议尽快保存到 GitHub。', 'error', 6000);
+          } else {
+            alert('存储空间不足，' + droppedCount + ' 张图片未保存到本地缓存。建议尽快点击「保存到GitHub」按钮备份数据。');
+          }
+        } catch(e) { console.warn('Could not show image budget warning:', e); }
+      }
 
       try {
         const jsonStr = JSON.stringify(data);
@@ -4629,7 +4653,7 @@
                   Object.keys(ex).forEach(function(k) { if (!textOnly[k]) textOnly[k] = ex[k]; });
                 }
               }
-            } catch(exErr) {}
+            } catch(exErr) { console.warn('Failed to parse existing data in text-only retry:', exErr); }
             works.forEach(function(w, i) {
               var dtK = 'detail-title-' + i;
               if (textOnly[dtK]) textOnly[dtK].text = w.title;
@@ -4670,7 +4694,7 @@
         document.querySelectorAll('[data-editable]').forEach(el => {
           const key = el.getAttribute('data-editable');
           if (data[key]) {
-            el.innerHTML = data[key].text || el.innerHTML;
+            el.innerHTML = sanitizeHTML(data[key].text) || el.innerHTML;
             if (data[key].fontFamily) el.style.fontFamily = data[key].fontFamily;
             if (data[key].fontSize) el.style.fontSize = data[key].fontSize;
             if (data[key].color) el.style.color = data[key].color;
@@ -4781,7 +4805,12 @@
       return str.replace(re, replacement.replace(/\$/g, '$$$$'));
     }
 
-    function replaceEditableInHtml(html, key, newContent) {
+    function replaceEditableInHtml(html, key, newContent, escapeContent) {
+      // escapeContent defaults to true — escapes HTML entities for plain-text fields.
+      // Set to false for HTML_KEYS (profile-bio, brand) where innerHTML is preserved.
+      if (escapeContent === undefined) escapeContent = true;
+      var safeContent = escapeContent ? escapeHtml(newContent) : newContent;
+
       // Find the opening tag with data-editable="key"
       var escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       var openRe = new RegExp('<[^>]*data-editable="' + escapedKey + '"[^>]*>');
@@ -4822,19 +4851,19 @@
         } else {
           depth--;
           if (depth === 0) {
-            var closeTagEnd = html.indexOf('>', nextClose);
-            var closeTag = html.substring(nextClose, closeTagEnd + 1);
-            return html.substring(0, contentStart) + newContent + html.substring(nextClose);
+            return html.substring(0, contentStart) + safeContent + html.substring(nextClose);
           }
           pos = html.indexOf('>', nextClose) + 1;
         }
       }
 
       // Fallback: simple regex (shouldn't reach here for well-formed HTML)
+      // Escape only $ in safeContent, preserving $1/$3 back-references
+      var escapedForReplace = safeContent.replace(/\$/g, '$$$$');
       var re = new RegExp(
         '(<[^>]*data-editable="' + escapedKey + '"[^>]*>)([\\s\\S]*?)(</[^>]+>)'
       );
-      return safeReplace(html, re, '$1' + newContent + '$3');
+      return html.replace(re, '$1' + escapedForReplace + '$3');
     }
 
     githubSaveBtn.addEventListener('click', async () => {
@@ -4906,7 +4935,8 @@
             content = el.textContent;
           }
 
-          html = replaceEditableInHtml(html, key, content);
+          var isHtmlKey = HTML_KEYS.indexOf(key) !== -1;
+          html = replaceEditableInHtml(html, key, content, !isHtmlKey);
         });
 
         // 2a. Override card titles/categories from works array (always up-to-date,
