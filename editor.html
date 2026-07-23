@@ -3574,7 +3574,15 @@
     function handleFiles(files) {
       const preview = document.getElementById('imgPreview');
       for (const file of files) {
-        if (!file.type.startsWith('image/')) continue;
+        if (!file.type.startsWith('image/')) {
+          console.warn('Skipping non-image file:', file.name, file.type);
+          continue;
+        }
+        // Hard limit: reject files over 50MB to prevent browser tab crashes
+        if (file.size > 50 * 1024 * 1024) {
+          showFeedback('文件 "' + file.name + '" 过大（超过50MB），请选择更小的图片', 'error', 4000);
+          continue;
+        }
         
         const processImage = (dataUrl) => {
           if (!dataUrl || !dataUrl.startsWith('data:image/')) {
@@ -4028,13 +4036,20 @@
         return;
       }
       if (works.length === 0) {
-        console.warn('works array is empty, skipping rerenderGrid');
+        grid.innerHTML = '<div style="text-align:center;padding:80px 20px;color:#666;font-size:16px;">暂无作品</div>';
+        revealObserver.disconnect();
         return;
       }
+      // Disconnect observer from old (about-to-be-destroyed) card elements
+      revealObserver.disconnect();
+
       grid.innerHTML = works.map((w, i) => createCardHTML(w, i)).join('');
 
       // Apply saved editor data
       applySavedDataToScope(grid);
+
+      // Re-observe new cards for scroll-reveal animation
+      document.querySelectorAll('.portfolio-card').forEach(card => revealObserver.observe(card));
     }
 
     /* ===== SORT OVERLAY (FULL-SCREEN REORDER PAGE) ===== */
@@ -4043,6 +4058,11 @@
     let sortDragIdx = null;
     let sortFilter = 'all'; // which filter the sort is for
     let sortIndices = []; // original indices of filtered items in works array
+    // Active drag state for mid-drag cleanup
+    let _sortDragMoveHandler = null;
+    let _sortDragUpHandler = null;
+    let _sortDragCard = null;
+    let _sortDragPointerId = null;
 
     document.getElementById('sortProjectBtn').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -4115,6 +4135,32 @@
 
     function closeSortOverlay(immediate) {
       if (!sortOverlay) return;
+
+      // Clean up any active drag state (mid-drag close)
+      if (_sortDragMoveHandler) {
+        document.removeEventListener('pointermove', _sortDragMoveHandler);
+        _sortDragMoveHandler = null;
+      }
+      if (_sortDragUpHandler) {
+        document.removeEventListener('pointerup', _sortDragUpHandler);
+        _sortDragUpHandler = null;
+      }
+      if (_sortDragCard && _sortDragPointerId !== null) {
+        try { _sortDragCard.releasePointerCapture(_sortDragPointerId); } catch(e) {}
+        _sortDragCard.classList.remove('sort-dragging');
+        _sortDragCard = null;
+        _sortDragPointerId = null;
+      }
+      // Remove ghost clone elements
+      document.querySelectorAll('.sort-clone').forEach(c => c.remove());
+      // Clear squeeze/drag CSS classes
+      clearSqueezeClasses();
+      // Remove drop indicator
+      if (dropIndicator && dropIndicator.parentNode) {
+        dropIndicator.parentNode.removeChild(dropIndicator);
+        dropIndicator = null;
+      }
+
       if (immediate) {
         sortOverlay.classList.remove('active', 'visible');
         sortDragIdx = null;
@@ -4248,11 +4294,11 @@
       // Close overlay immediately
       closeSortOverlay(true);
 
-      // Re-render main grid after overlay is hidden
-      setTimeout(() => {
-        rerenderGrid();
-        saveEditorData();
-      }, 50);
+      // Re-render main grid synchronously to keep DOM consistent with works array.
+      // Do NOT use setTimeout here — the gap between works mutation and DOM update
+      // creates a race condition where syncWorksFromDOM could read stale DOM order.
+      rerenderGrid();
+      saveEditorData();
     }
 
     function renderSortGrid() {
@@ -4382,6 +4428,11 @@
       function onUp(e) {
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
+        // Clear stored drag state
+        _sortDragMoveHandler = null;
+        _sortDragUpHandler = null;
+        _sortDragCard = null;
+        _sortDragPointerId = null;
 
         if (!moved) { sortDragIdx = null; return; }
 
@@ -4410,6 +4461,11 @@
 
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
+      // Store references for mid-drag cleanup (if overlay closes while dragging)
+      _sortDragMoveHandler = onMove;
+      _sortDragUpHandler = onUp;
+      _sortDragCard = card;
+      _sortDragPointerId = e.pointerId;
     }
 
     // Auto-close sort overlay when leaving editor mode
@@ -4970,7 +5026,7 @@
         // Card titles/categories are NOT in static HTML — cards are rendered dynamically
         // from the works array. We must replace the array in the JS source code directly.
         var jsArrayLines = works.map(function(w) {
-          var esc = function(s) { return (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, ''); };
+          var esc = function(s) { return (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'); };
           var galleryStr = '';
           if (w.gallery && w.gallery.length > 0) {
             var escapedUrls = w.gallery.map(function(url) { return '"' + esc(url) + '"'; });
@@ -4978,7 +5034,7 @@
           }
           return '{ id:' + (w.id || 0) + ', title:"' + esc(w.title) + '", category:"' + esc(w.category) +
             '", categoryName:"' + esc(w.categoryName) + '", url:"' + esc(w.url) +
-            '", img:placeholderImgs[' + ((w.id || 1) - 1) + '],\n' +
+            '", img:placeholderImgs[' + (((w.id || 1) - 1) % 16) + '],\n' +
             '        desc:"' + esc(w.desc) + '",\n' +
             '        client:"' + esc(w.client) + '", year:"' + esc(w.year) +
             '", scope:"' + esc(w.scope) + '"' + galleryStr + ' }';
@@ -5015,7 +5071,9 @@
         // 2d. Update email href
         var emailEl = document.querySelector('[data-editable="contact-email-value"]');
         if (emailEl) {
-          var emailAddr = emailEl.textContent.trim();
+          var emailAddr = emailEl.textContent.trim().replace(/"/g, '&quot;').replace(/[<>&]/g, function(c) {
+            return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c];
+          });
           html = safeReplace(html, /href="mailto:[^"]*"/, 'href="mailto:' + emailAddr + '"');
         }
 
@@ -5072,6 +5130,27 @@
           var errData = await putResp.json().catch(function() { return {}; });
           var errMsg = errData.message || '';
           console.log('[Save] First PUT failed:', putResp.status, errMsg);
+
+          // 401 Unauthorized → prompt re-login
+          if (putResp.status === 401) {
+            throw new Error('登录已过期，请重新登录后再试');
+          }
+
+          // 403 Rate limit
+          if (putResp.status === 403 && errMsg.toLowerCase().indexOf('rate limit') !== -1) {
+            throw new Error('GitHub API 请求次数已达上限，请稍后再试');
+          }
+
+          // 5xx Server error → retry once after 2 seconds
+          if (putResp.status >= 500 && putResp.status < 600) {
+            console.log('[Save] Server error ' + putResp.status + ', retrying in 2s...');
+            await new Promise(function(r) { setTimeout(r, 2000); });
+            putResp = await doPut(sha);
+            if (!putResp.ok) {
+              errData = await putResp.json().catch(function() { return {}; });
+              throw new Error('服务器暂时不可用（' + putResp.status + '），请稍后重试');
+            }
+          }
 
           // SHA mismatch → try to get fresh SHA and retry
           if (errMsg.indexOf('does not match') !== -1 || putResp.status === 409) {
