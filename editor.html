@@ -2108,8 +2108,8 @@
     <a href="#top" class="brand" data-editable="brand" onclick="if(editorMode){event.preventDefault();return false;}"><span class="brand-en">SHAOHUA</span><span class="brand-cn">韶华</span></a>
     <ul class="nav-links">
       <li><a href="#works" data-editable="nav-works" onclick="if(editorMode){event.preventDefault();return false;}">作品</a></li>
-      <li><a href="javascript:void(0)" onclick="event.stopPropagation();openProfile()" data-editable="nav-profile">简介</a></li>
-      <li><a href="javascript:void(0)" onclick="event.stopPropagation();openContact()" data-editable="nav-contact">联系</a></li>
+      <li><a href="javascript:void(0)" onclick="if(typeof editorMode!=='undefined'&&editorMode){event.stopPropagation();return false;}event.stopPropagation();openProfile()" data-editable="nav-profile">简介</a></li>
+      <li><a href="javascript:void(0)" onclick="if(typeof editorMode!=='undefined'&&editorMode){event.stopPropagation();return false;}event.stopPropagation();openContact()" data-editable="nav-contact">联系</a></li>
     </ul>
   </nav>
 
@@ -2889,7 +2889,13 @@
     const filterContainer = document.querySelector('.filter-container');
     const filterBtns = document.querySelectorAll('.filter-btn');
 
+    let _filterHideTimeouts = [];
+
     function applyFilter(filter) {
+      // Cancel all pending hide timeouts from previous filter call
+      _filterHideTimeouts.forEach(t => clearTimeout(t));
+      _filterHideTimeouts = [];
+
       const cards = document.querySelectorAll('.portfolio-card');
       cards.forEach((card, i) => {
         const show = filter === 'all' || card.dataset.category === filter;
@@ -2904,7 +2910,7 @@
           card.style.opacity = '0';
           card.style.transform = 'translateY(20px) scale(0.95)';
           card.style.transitionDelay = '0s';
-          setTimeout(() => card.classList.add('hidden'), 400);
+          _filterHideTimeouts.push(setTimeout(() => card.classList.add('hidden'), 400));
         }
       });
     }
@@ -2953,6 +2959,7 @@
     }
 
     function closeContact() {
+      if (typeof editorMode !== 'undefined' && editorMode) saveEditorData();
       contactOverlay.classList.remove('active');
       document.body.style.overflow = '';
     }
@@ -2974,6 +2981,7 @@
     }
 
     function closeProfile() {
+      if (typeof editorMode !== 'undefined' && editorMode) saveEditorData();
       profileOverlay.classList.remove('active');
       document.body.style.overflow = '';
     }
@@ -2995,6 +3003,15 @@
         }
         textConfirmModal.classList.remove('visible');
         return;
+      }
+      // In editor mode, if editor-specific overlays are visible, let the second handler
+      // manage them (sort, image modal, new project) — close one at a time
+      if (typeof editorMode !== 'undefined' && editorMode) {
+        if ((sortOverlay && sortOverlay.classList.contains('visible')) ||
+            (document.getElementById('imgUploadModal') && document.getElementById('imgUploadModal').classList.contains('visible')) ||
+            (document.getElementById('newProjectModal') && document.getElementById('newProjectModal').classList.contains('visible'))) {
+          return; // second keydown handler will close one of these
+        }
       }
       if (detailOverlay.classList.contains('active')) closeDetail();
       else if (contactOverlay.classList.contains('active')) closeContact();
@@ -3105,6 +3122,8 @@
         document.querySelectorAll('[data-editable]').forEach(el => {
           el.contentEditable = 'false';
         });
+        currentEditable = null;
+        textToolbar.classList.remove('visible');
         saveEditorData();
       } else {
         loadEditorData();
@@ -4298,6 +4317,13 @@
       // Do NOT use setTimeout here — the gap between works mutation and DOM update
       // creates a race condition where syncWorksFromDOM could read stale DOM order.
       rerenderGrid();
+      // Re-apply the active filter (rerenderGrid shows all cards by default)
+      if (sortFilter && sortFilter !== 'all') {
+        applyFilter(sortFilter);
+        filterBtns.forEach(b => {
+          b.classList.toggle('active', b.dataset.filter === sortFilter);
+        });
+      }
       saveEditorData();
     }
 
