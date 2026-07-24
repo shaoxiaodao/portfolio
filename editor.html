@@ -2108,8 +2108,8 @@
     <a href="#top" class="brand" data-editable="brand" onclick="if(editorMode){event.preventDefault();return false;}"><span class="brand-en">SHAOHUA</span><span class="brand-cn">韶华</span></a>
     <ul class="nav-links">
       <li><a href="#works" data-editable="nav-works" onclick="if(editorMode){event.preventDefault();return false;}">作品</a></li>
-      <li><a href="javascript:void(0)" onclick="if(typeof editorMode!=='undefined'&&editorMode){event.stopPropagation();return false;}event.stopPropagation();openProfile()" data-editable="nav-profile">简介</a></li>
-      <li><a href="javascript:void(0)" onclick="if(typeof editorMode!=='undefined'&&editorMode){event.stopPropagation();return false;}event.stopPropagation();openContact()" data-editable="nav-contact">联系</a></li>
+      <li><a href="javascript:void(0)" onclick="event.stopPropagation();openProfile()" data-editable="nav-profile">简介</a></li>
+      <li><a href="javascript:void(0)" onclick="event.stopPropagation();openContact()" data-editable="nav-contact">联系</a></li>
     </ul>
   </nav>
 
@@ -2645,9 +2645,10 @@
           if (galleryContainer) {
             var gallerySrcs = [];
             galleryContainer.querySelectorAll('.detail-gallery-img').forEach(function(img) {
-              if (img.src) gallerySrcs.push(img.src);
+              if (img.src && img.src.indexOf('data:image/') === 0) gallerySrcs.push(img.src);
             });
             if (gallerySrcs.length > 0) w.gallery = gallerySrcs;
+            else delete w.gallery;
           }
         });
         saveEditorData();
@@ -2974,7 +2975,6 @@
     const profileClose = document.getElementById('profileClose');
 
     function openProfile() {
-      if (editorMode) return; // Don't navigate in editor mode
       profileOverlay.classList.add('active');
       profileOverlay.scrollTop = 0;
       document.body.style.overflow = 'hidden';
@@ -4567,9 +4567,10 @@
           if (galleryEl) {
             const gallerySrcs = [];
             galleryEl.querySelectorAll('.detail-gallery-img').forEach(function(img) {
-              if (img.src) gallerySrcs.push(img.src);
+              if (img.src && img.src.indexOf('data:image/') === 0) gallerySrcs.push(img.src);
             });
             if (gallerySrcs.length > 0) w.gallery = gallerySrcs;
+            else delete w.gallery;
           }
         } else {
           // Detail is closed — read from card DOM as source of truth
@@ -5068,15 +5069,18 @@
         // Card titles/categories are NOT in static HTML — cards are rendered dynamically
         // from the works array. We must replace the array in the JS source code directly.
         var jsArrayLines = works.map(function(w) {
-          var esc = function(s) { return (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'); };
+          var esc = function(s) { return (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029').replace(/<\//g, '<\\/'); };
           var galleryStr = '';
           if (w.gallery && w.gallery.length > 0) {
             var escapedUrls = w.gallery.map(function(url) { return '"' + esc(url) + '"'; });
             galleryStr = ',\n        gallery:[' + escapedUrls.join(',') + ']';
           }
+          var imgStr = (w.img && w.img.indexOf('data:image/') === 0)
+            ? '"' + esc(w.img) + '"'
+            : 'placeholderImgs[' + (((w.id || 1) - 1) % 16) + ']';
           return '{ id:' + (w.id || 0) + ', title:"' + esc(w.title) + '", category:"' + esc(w.category) +
             '", categoryName:"' + esc(w.categoryName) + '", url:"' + esc(w.url) +
-            '", img:placeholderImgs[' + (((w.id || 1) - 1) % 16) + '],\n' +
+            '", img:' + imgStr + ',\n' +
             '        desc:"' + esc(w.desc) + '",\n' +
             '        client:"' + esc(w.client) + '", year:"' + esc(w.year) +
             '", scope:"' + esc(w.scope) + '"' + galleryStr + ' }';
