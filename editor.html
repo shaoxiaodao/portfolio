@@ -5015,7 +5015,12 @@
         if (!getResp.ok) throw new Error('获取文件失败 (' + getResp.status + ')');
         var fileInfo = await getResp.json();
         var sha = fileInfo.sha;
-        var html = decodeURIComponent(escape(atob(fileInfo.content)));
+        // Strip newlines from base64 content (GitHub API inserts line breaks)
+        var rawB64 = (fileInfo.content || '').replace(/\s/g, '');
+        if (!rawB64) throw new Error('从 GitHub 获取的 index.html 内容为空，已中止保存。请先检查 GitHub 仓库中的 index.html 是否正常。');
+        var html = decodeURIComponent(escape(atob(rawB64)));
+        if (!html || html.length < 1000) throw new Error('从 GitHub 获取的 index.html 内容异常（仅 ' + (html ? html.length : 0) + ' 字符），已中止保存以防覆盖。');
+        var _fetchedHtmlLen = html.length; // Track for pre-push validation
 
         // 2. Apply text edits via safe string replacement (NO DOMParser)
         // Rich-text elements that need innerHTML (preserves <p> tags etc.)
@@ -5149,7 +5154,17 @@
         });
 
         // 4. Push updated index.html to GitHub via Contents API PUT
-        var contentB64 = btoa(unescape(encodeURIComponent(html)));
+        // Pre-push validation: abort if content is empty or drastically truncated
+        if (!html || html.length < 1000) throw new Error('保存异常：index.html 内容过短（' + (html ? html.length : 0) + ' 字符），已中止推送以防覆盖。');
+        if (html.length < _fetchedHtmlLen * 0.5) throw new Error('保存异常：index.html 内容从 ' + _fetchedHtmlLen + ' 字符缩减到 ' + html.length + ' 字符，可能存在数据丢失，已中止推送。');
+        if (html.indexOf('<html') === -1 && html.indexOf('<!DOCTYPE') === -1 && html.indexOf('<!doctype') === -1) throw new Error('保存异常：index.html 中未找到 HTML 标记，内容可能已损坏，已中止推送。');
+        var contentB64;
+        try {
+          contentB64 = btoa(unescape(encodeURIComponent(html)));
+        } catch (b64err) {
+          throw new Error('Base64 编码失败（内容长度 ' + html.length + '）：' + b64err.message);
+        }
+        if (!contentB64 || contentB64.length < 100) throw new Error('Base64 编码结果为空，已中止推送。');
 
         async function doPut(currentSha) {
           var putResp;
