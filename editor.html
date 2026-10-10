@@ -2290,6 +2290,71 @@
       }
     })();
 
+    /* ===== INDEXEDDB IMAGE STORE =====
+       localStorage (~5MB/origin) cannot hold a portfolio's base64 images, which is
+       why uploads kept overflowing the cache. Images are stored here instead;
+       IndexedDB quota is hundreds of MB. Text edits stay in localStorage. */
+    var IDB = (function () {
+      var DB_NAME = 'shaohua_editor', STORE = 'images', dbp = null;
+      function open() {
+        if (dbp) return dbp;
+        dbp = new Promise(function (res, rej) {
+          if (!('indexedDB' in window)) { rej(new Error('no-idb')); return; }
+          var req = indexedDB.open(DB_NAME, 1);
+          req.onupgradeneeded = function (e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+          };
+          req.onsuccess = function (e) { res(e.target.result); };
+          req.onerror = function (e) { rej(e.target.error || new Error('idb-open-fail')); };
+          req.onblocked = function () { rej(new Error('idb-blocked')); };
+        });
+        return dbp;
+      }
+      function setMany(obj) {
+        var keys = Object.keys(obj);
+        if (keys.length === 0) return Promise.resolve();
+        return open().then(function (db) {
+          return new Promise(function (res, rej) {
+            var t = db.transaction(STORE, 'readwrite');
+            var s = t.objectStore(STORE);
+            keys.forEach(function (k) { s.put(obj[k], k); });
+            t.oncomplete = function () { res(); };
+            t.onerror = function (e) { rej(e.target.error || new Error('idb-write-fail')); };
+            t.onabort = function (e) { rej(e.target.error || new Error('idb-abort')); };
+          });
+        });
+      }
+      function getAll() {
+        return open().then(function (db) {
+          return new Promise(function (res, rej) {
+            var out = {};
+            var s = db.transaction(STORE, 'readonly').objectStore(STORE);
+            var req = s.openCursor();
+            req.onsuccess = function (e) {
+              var c = e.target.result;
+              if (c) { out[c.key] = c.value; c.continue(); } else { res(out); }
+            };
+            req.onerror = function (e) { rej(e.target.error || new Error('idb-read-fail')); };
+          });
+        }).catch(function () { return {}; });
+      }
+      function clearAll() {
+        return open().then(function (db) {
+          return new Promise(function (res, rej) {
+            var t = db.transaction(STORE, 'readwrite');
+            t.objectStore(STORE).clear();
+            t.oncomplete = function () { res(); };
+            t.onerror = function (e) { rej(e.target.error || new Error('idb-clear-fail')); };
+          });
+        }).catch(function () {});
+      }
+      return {
+        setMany: setMany, getAll: getAll, clearAll: clearAll,
+        available: function () { return 'indexedDB' in window; }
+      };
+    })();
+
     /* ===== PORTFOLIO DATA ===== */
     const placeholderImgs = [
       "https://picsum.photos/seed/brand01/800/600",
@@ -4712,139 +4777,85 @@
           if (data[cKey]) data[cKey].text = w.categoryName;
         });
       }
-      // Collect images with size tracking
+      // Collect ALL images into an object. They are stored in IndexedDB (large
+      // quota) below — NOT in localStorage — so a full portfolio of covers +
+      // galleries never overflows the ~5MB origin limit. No budget, no drops.
       let imageCount = 0;
-      const BUDGET = 4 * 1024 * 1024; // 4MB budget for images (text + gallery-stripped works are small; stays under the ~5MB origin limit)
-      let totalImgSize = 0;
-      const imageEntries = [];
+      const imagesObj = {};
       document.querySelectorAll('[data-uploadable]').forEach(el => {
         const key = el.getAttribute('data-uploadable') + '_img_' + el.getAttribute('data-img-id');
         const imgs = el.querySelectorAll('img');
         if (imgs.length === 0) return;
         if (imgs.length === 1) {
           const src = imgs[0].src;
-          if (src && src.startsWith('data:')) {
-            const size = src.length;
-            imageEntries.push({ key, value: src, size, type: 'single' });
-            totalImgSize += size;
-            imageCount++;
-          }
+          if (src && src.startsWith('data:')) { imagesObj[key] = src; imageCount++; }
         } else {
           const srcs = [];
-          let groupSize = 0;
           imgs.forEach(img => {
-            if (img.src && img.src.startsWith('data:')) {
-              srcs.push(img.src);
-              groupSize += img.src.length;
-              imageCount++;
-            }
+            if (img.src && img.src.startsWith('data:')) { srcs.push(img.src); imageCount++; }
           });
-          if (srcs.length > 0) {
-            const val = JSON.stringify(srcs);
-            imageEntries.push({ key, value: val, size: val.length, type: 'multi' });
-            totalImgSize += val.length;
-          }
+          if (srcs.length > 0) imagesObj[key] = JSON.stringify(srcs);
         }
       });
 
-      // Sort: smallest images first (keep as many as possible within budget)
-      imageEntries.sort((a, b) => a.size - b.size);
-      let usedBudget = 0;
-      let droppedCount = 0;
-      imageEntries.forEach(entry => {
-        if (usedBudget + entry.size <= BUDGET) {
-          data[entry.key] = entry.value;
-          usedBudget += entry.size;
-        } else {
-          droppedCount++;
-          console.warn('Skipping image', entry.key, '- would exceed budget');
+      // Also derive images from the in-memory works model so covers/galleries are
+      // captured even when the detail overlay is closed (those elements are not in
+      // the DOM then). DOM-collected values above already reflect live edits and win;
+      // this only fills gaps for works whose detail view is not currently mounted.
+      works.forEach(function (w, i) {
+        if (w.img && w.img.indexOf('data:image/') === 0 && !imagesObj['cover_img_card-' + i]) {
+          imagesObj['cover_img_card-' + i] = w.img;
+          imageCount++;
+        }
+        if (w.gallery && w.gallery.length > 0 && !imagesObj['detail_img_gallery-' + i]) {
+          imagesObj['detail_img_gallery-' + i] = JSON.stringify(w.gallery);
+          imageCount += w.gallery.length;
         }
       });
-      if (droppedCount > 0) {
-        console.warn(droppedCount + ' image(s) left out of the local cache due to budget limit');
-        try {
-          if (typeof showFeedback === 'function') {
-            showFeedback('本地缓存接近上限，' + droppedCount + ' 张较大的图片暂未写入本地备份（图片仍在页面上，点击「保存到 GitHub」会正常上传）。请在关闭或刷新前完成一次「保存到 GitHub」。', 'warn', 8000);
-          } else {
-            alert('本地缓存接近上限，' + droppedCount + ' 张较大的图片暂未写入本地备份。图片仍在页面上，点击「保存到 GitHub」会正常上传，请在关闭/刷新前先保存一次。');
-          }
-        } catch(e) { console.warn('Could not show image budget warning:', e); }
-      }
 
+      // Persist TEXT to localStorage (small now that base64 lives in IndexedDB).
       try {
-        const jsonStr = JSON.stringify(data);
-        localStorage.setItem('shaohua_editor_data', jsonStr);
-        if (works.length > 0) {
-          // Strip gallery data from works before saving to shaohua_works
-          // (gallery base64 URLs are huge and would exceed localStorage quota).
-          // Gallery data is persisted via shaohua_editor_data (detail_img_gallery-N)
-          // and written to GitHub's index.html via the works array serialization.
-          var savedGalleries = works.map(function(w) { return w.gallery; });
-          works.forEach(function(w) { delete w.gallery; });
-          try {
-            localStorage.setItem('shaohua_works', JSON.stringify(works));
-          } catch(worksErr) {
-            console.warn('Could not save works:', worksErr);
-          }
-          // Restore galleries in memory
-          works.forEach(function(w, i) {
-            if (savedGalleries[i]) w.gallery = savedGalleries[i];
-          });
-        }
-        console.log('Editor data saved,', imageCount, 'images,', Math.round(jsonStr.length / 1024), 'KB');
-      } catch(e) {
-        console.error('Could not save editor data:', e);
-        // Retry: save text only, skip all images
+        localStorage.setItem('shaohua_editor_data', JSON.stringify(data));
+      } catch (e) {
+        console.error('Could not save editor text:', e);
         try {
           const textOnly = {};
           document.querySelectorAll('[data-editable]').forEach(el => {
             const key = el.getAttribute('data-editable');
-            textOnly[key] = {
-              text: el.innerHTML,
-              fontFamily: el.style.fontFamily || '',
-              fontSize: el.style.fontSize || '',
-              color: el.style.color || ''
-            };
+            textOnly[key] = { text: el.innerHTML, fontFamily: el.style.fontFamily || '', fontSize: el.style.fontSize || '', color: el.style.color || '' };
           });
-          // Always preserve existing (non-DOM) keys — especially image base64 —
-          // so a quota overflow can never wipe previously-saved images, regardless
-          // of whether the detail overlay is currently open.
-          try {
-            var exRaw = localStorage.getItem('shaohua_editor_data');
-            if (exRaw) {
-              var ex = JSON.parse(exRaw);
-              if (ex && typeof ex === 'object') {
-                Object.keys(ex).forEach(function(k) { if (!textOnly[k]) textOnly[k] = ex[k]; });
-              }
-            }
-          } catch(exErr) { console.warn('Failed to parse existing data in text-only retry:', exErr); }
-          // Update detail/card text from works only when detail is not active
-          // (when it IS active the DOM already holds the freshest text).
-          if (!detailOverlay.classList.contains('active')) {
-            works.forEach(function(w, i) {
-              var dtK = 'detail-title-' + i;
-              if (textOnly[dtK]) textOnly[dtK].text = w.title;
-              var dcK = 'detail-cat-' + i;
-              if (textOnly[dcK]) textOnly[dcK].text = w.categoryName;
-              var tK = 'title-' + i;
-              if (textOnly[tK]) textOnly[tK].text = w.title;
-              var cK = 'cat-' + i;
-              if (textOnly[cK]) textOnly[cK].text = w.categoryName;
-            });
-          }
           localStorage.setItem('shaohua_editor_data', JSON.stringify(textOnly));
-          if (works.length > 0) {
-            var savedGal2 = works.map(function(w) { return w.gallery; });
-            works.forEach(function(w) { delete w.gallery; });
-            try { localStorage.setItem('shaohua_works', JSON.stringify(works)); } catch(we) {}
-            works.forEach(function(w, i) { if (savedGal2[i]) w.gallery = savedGal2[i]; });
-          }
-          showFeedback('文字已保存，图片因空间不足未保存（保存到GitHub时图片仍会写入）', 'error', 6000);
-        } catch(e2) {
-          console.error('Even text-only save failed:', e2);
-          showFeedback('本地保存失败', 'error', 4000);
-        }
+        } catch (e2) { console.error('Even text-only save failed:', e2); }
       }
+
+      // Persist WORKS (text fields only) to localStorage with base64 stripped so the
+      // key stays tiny. Covers + galleries live in IndexedDB and are repopulated into
+      // the in-memory works model on load (restoreImagesFromIDB).
+      if (works.length > 0) {
+        var savedGalleries = works.map(function (w) { return w.gallery; });
+        var savedImgs = works.map(function (w) { return w.img; });
+        works.forEach(function (w) {
+          delete w.gallery;
+          if (w.img && w.img.indexOf('data:image/') === 0) delete w.img;
+        });
+        try { localStorage.setItem('shaohua_works', JSON.stringify(works)); }
+        catch (worksErr) { console.warn('Could not save works:', worksErr); }
+        works.forEach(function (w, i) {
+          if (savedGalleries[i]) w.gallery = savedGalleries[i];
+          if (savedImgs[i]) w.img = savedImgs[i];
+        });
+      }
+
+      // Persist IMAGES to IndexedDB. The GitHub publish uses the in-memory works
+      // array, so a failed cache write never blocks publishing — only warn.
+      IDB.setMany(imagesObj).then(function () {
+        console.log('Editor data saved:', imageCount, 'images -> IndexedDB');
+      }).catch(function (err) {
+        console.warn('IndexedDB image save failed:', err);
+        if (err && err.message !== 'no-idb' && typeof showFeedback === 'function') {
+          showFeedback('图片本地缓存失败，请点「保存到 GitHub」确保上传成功。', 'warn', 5000);
+        }
+      });
     }
 
     function loadEditorData() {
@@ -4929,6 +4940,70 @@
       } catch(e) {
         console.error('Could not load editor data:', e);
       }
+      // Images now live in IndexedDB (localStorage can't hold a portfolio's base64).
+      restoreImagesFromIDB();
+    }
+
+    // Apply an image map (key -> data URL / JSON gallery) to the current DOM.
+    function applyImagesToDom(imgs) {
+      if (!imgs || typeof imgs !== 'object') return;
+      document.querySelectorAll('[data-uploadable]').forEach(el => {
+        const key = el.getAttribute('data-uploadable') + '_img_' + el.getAttribute('data-img-id');
+        const saved = imgs[key];
+        if (!saved) return;
+        if (typeof saved === 'string' && saved.charAt(0) === '[') {
+          try {
+            const srcs = JSON.parse(saved);
+            if (Array.isArray(srcs) && srcs.length > 0) {
+              el.querySelectorAll('img').forEach(img => img.remove());
+              const hint = el.querySelector('.upload-hint');
+              srcs.forEach(src => {
+                if (src && src.startsWith('data:image/')) {
+                  const img = document.createElement('img');
+                  img.src = src;
+                  img.className = 'detail-gallery-img';
+                  img.style.aspectRatio = '16/9';
+                  if (hint) el.insertBefore(img, hint); else el.appendChild(img);
+                }
+              });
+            }
+          } catch (parseErr) { console.warn('Failed to parse gallery for key:', key); }
+        } else if (typeof saved === 'string' && saved.startsWith('data:image/')) {
+          const img = el.querySelector('img');
+          if (img) img.src = saved;
+        }
+      });
+    }
+
+    // Restore images from IndexedDB: repopulate the in-memory works model (so the
+    // GitHub publish keeps covers + galleries) and paint them into the DOM.
+    var editorImagesReady = Promise.resolve();
+    function restoreImagesFromIDB() {
+      editorImagesReady = IDB.getAll().then(function (imgs) {
+        try {
+          works.forEach(function (w, i) {
+            var ck = imgs['cover_img_card-' + i];
+            if (typeof ck === 'string' && ck.indexOf('data:image/') === 0) w.img = ck;
+            var gk = imgs['detail_img_gallery-' + i];
+            if (typeof gk === 'string' && gk.charAt(0) === '[') {
+              try {
+                var arr = JSON.parse(gk);
+                if (Array.isArray(arr)) {
+                  var clean = arr.filter(function (u) { return typeof u === 'string' && u.indexOf('data:image/') === 0; });
+                  if (clean.length > 0) w.gallery = clean;
+                }
+              } catch (gErr) { console.warn('Could not parse gallery for work', i, gErr); }
+            }
+          });
+        } catch (modelErr) { console.warn('Error repopulating works from IndexedDB:', modelErr); }
+        applyImagesToDom(imgs);
+        try { rerenderGrid(); } catch (e) { console.warn('rerenderGrid after IDB restore failed:', e); }
+        return imgs;
+      }).catch(function (e) {
+        console.warn('IndexedDB restore failed:', e);
+        return {};
+      });
+      return editorImagesReady;
     }
 
     // Load saved data on page load
@@ -5042,6 +5117,10 @@
       githubSaveBtn.disabled = true;
 
       try {
+        // Ensure any in-flight IndexedDB image restore has repopulated the works
+        // model + DOM before we serialize for publish, otherwise covers/galleries
+        // could be published as empty.
+        try { await editorImagesReady; } catch(e) {}
         saveEditorData();
         showFeedback('正在同步到公开网站...', 'info', false);
 
@@ -5472,12 +5551,14 @@
           }
         });
 
-        // 4. Hydrate in-memory works + persist to localStorage (mirror save layout)
+        // 4. Hydrate in-memory works + persist (mirror saveEditorData layout):
+        //    text/layout -> localStorage, base64-stripped works -> shaohua_works,
+        //    image data URLs -> IndexedDB (localStorage cannot hold a portfolio's images)
         works.length = 0;
         fetchedWorks.forEach(function(w) { works.push(w); });
 
-        // Galleries live in the works array; expose them to editor_data too so the
-        // reload-repopulate step and loadEditorData both find them.
+        // Ensure cover/gallery images carried in the works model are also present
+        // under the editor's canonical image keys so they land in IndexedDB.
         works.forEach(function(w, i) {
           if (w.gallery && w.gallery.length > 0) {
             data['detail_img_gallery-' + i] = JSON.stringify(w.gallery);
@@ -5487,12 +5568,51 @@
           }
         });
 
-        localStorage.setItem('shaohua_editor_data', JSON.stringify(data));
-        var savedGalleries = works.map(function(w) { return w.gallery; });
-        works.forEach(function(w) { delete w.gallery; });
-        try { localStorage.setItem('shaohua_works', JSON.stringify(works)); }
-        catch(worksErr) { console.warn('Could not persist works after load:', worksErr); }
-        works.forEach(function(w, i) { if (savedGalleries[i]) w.gallery = savedGalleries[i]; });
+        // Partition data into text/layout vs base64 images.
+        var textData = {};
+        var imagesObj = {};
+        Object.keys(data).forEach(function(k) {
+          if (k.indexOf('_img_') !== -1) {
+            var v = data[k];
+            if (typeof v === 'string' && (v.indexOf('data:image/') === 0 || v.charAt(0) === '[')) {
+              imagesObj[k] = v;
+            }
+          } else {
+            textData[k] = data[k];
+          }
+        });
+
+        // TEXT + layout -> localStorage (never base64 images)
+        try {
+          localStorage.setItem('shaohua_editor_data', JSON.stringify(textData));
+        } catch (storeErr) {
+          console.warn('Could not persist editor text after load:', storeErr);
+        }
+
+        // WORKS (base64 stripped) -> shaohua_works
+        if (works.length > 0) {
+          var savedGalleries = works.map(function(w) { return w.gallery; });
+          var savedImgs = works.map(function(w) { return w.img; });
+          works.forEach(function(w) {
+            delete w.gallery;
+            if (w.img && w.img.indexOf('data:image/') === 0) delete w.img;
+          });
+          try { localStorage.setItem('shaohua_works', JSON.stringify(works)); }
+          catch (worksErr) { console.warn('Could not persist works after load:', worksErr); }
+          // Restore full model in memory (publish uses this, not localStorage)
+          works.forEach(function(w, i) {
+            if (savedGalleries[i]) w.gallery = savedGalleries[i];
+            if (savedImgs[i]) w.img = savedImgs[i];
+          });
+        }
+
+        // IMAGES -> IndexedDB (clear first so removed images don't linger)
+        try {
+          await IDB.clearAll();
+          await IDB.setMany(imagesObj);
+        } catch (imgErr) {
+          if (imgErr && imgErr.message !== 'no-idb') console.warn('Could not cache images after load:', imgErr);
+        }
 
         // 5. Re-render the editor UI from the freshly loaded content
         // Hide the detail overlay WITHOUT closeDetail() (which would sync the
