@@ -5017,6 +5017,16 @@
         var sha = fileInfo.sha;
         // Strip newlines from base64 content (GitHub API inserts line breaks)
         var rawB64 = (fileInfo.content || '').replace(/\s/g, '');
+        // Large-file fallback: the Contents API omits `content` for files > 1MB.
+        // Fetch the raw base64 via the Git Blob API instead (supports files up to 100MB).
+        if (!rawB64 && sha) {
+          var blobUrl = 'https://api.github.com/repos/' + owner + '/' + repo + '/git/blobs/' + sha;
+          var blobResp = await ghFetch(blobUrl);
+          if (!blobResp.ok) throw new Error('获取文件内容失败（Blob API 返回 ' + blobResp.status + '）');
+          var blobInfo = await blobResp.json();
+          if (blobInfo.truncated) throw new Error('文件过大，GitHub 返回内容被截断，已中止保存以防覆盖。');
+          rawB64 = (blobInfo.content || '').replace(/\s/g, '');
+        }
         if (!rawB64) throw new Error('从 GitHub 获取的 index.html 内容为空，已中止保存。请先检查 GitHub 仓库中的 index.html 是否正常。');
         var html = decodeURIComponent(escape(atob(rawB64)));
         if (!html || html.length < 1000) throw new Error('从 GitHub 获取的 index.html 内容异常（仅 ' + (html ? html.length : 0) + ' 字符），已中止保存以防覆盖。');
