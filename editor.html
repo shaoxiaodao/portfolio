@@ -2349,8 +2349,20 @@
           });
         }).catch(function () {});
       }
+      function removeMany(keys) {
+        if (!keys || keys.length === 0) return Promise.resolve();
+        return open().then(function (db) {
+          return new Promise(function (res, rej) {
+            var t = db.transaction(STORE, 'readwrite');
+            var s = t.objectStore(STORE);
+            keys.forEach(function (k) { s.delete(k); });
+            t.oncomplete = function () { res(); };
+            t.onerror = function (e) { rej(e.target.error || new Error('idb-delete-fail')); };
+          });
+        }).catch(function () {});
+      }
       return {
-        setMany: setMany, getAll: getAll, clearAll: clearAll,
+        setMany: setMany, getAll: getAll, clearAll: clearAll, removeMany: removeMany,
         available: function () { return 'indexedDB' in window; }
       };
     })();
@@ -3627,89 +3639,198 @@
       handleFiles(e.dataTransfer.files);
     });
 
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB max file accepted
-    const IMG_TARGET = 200 * 1024; // 200KB target per image for localStorage
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — above this we still encode from the original, never double-compress
 
-    // Compress image using canvas (targets ~200KB per image for localStorage)
-    function compressImage(file, maxSize) {
-      const target = maxSize || IMG_TARGET;
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-            // Step 1: Scale to max 1200px on longest side
-            const MAX_DIM = 1200;
-            let w = img.width, h = img.height;
-            if (w > MAX_DIM || h > MAX_DIM) {
-              const scale = MAX_DIM / Math.max(w, h);
-              w = Math.round(w * scale);
-              h = Math.round(h * scale);
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    /* ===== IMAGE PIPELINE v2 (WebP-first, alpha-safe, single-pass, retina-sized) =====
+       The old pipeline forced JPEG at 1200px / quality 0.5–0.7 and re-encoded data URLs,
+       which destroyed transparency (logos / VI on black) and produced soft, blurry output.
+       New rules: encode each source exactly once, prefer WebP (keeps alpha, ~30% smaller at
+       equal perceptual quality), size to a generous retina cap, and downscale in halving
+       steps so edges and text stay crisp. */
+    const OUT_MAX_EDGE = 2400;   // long-edge cap for detail/master images (retina-friendly)
+    const OUT_QUALITY  = 0.86;   // WebP/JPEG quality — near-lossless to the eye
 
-            // Step 2: Try quality 0.7 (good balance)
-            let dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-            let estSize = (dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75;
+    const SUPPORTS_WEBP = (function () {
+      try {
+        var c = document.createElement('canvas');
+        c.width = 1; c.height = 1;
+        return c.toDataURL('image/webp').indexOf('image/webp') === 0;
+      } catch (e) { return false; }
+    })();
 
-            // Step 3: If still too big, drop to 0.5 quality
-            if (estSize > target) {
-              dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-              estSize = (dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75;
-            }
-
-            // Step 4: If still too big, scale down to 800px and quality 0.5
-            if (estSize > target && w > 800) {
-              const sCanvas = document.createElement('canvas');
-              const sw = 800, sh = Math.round(h * (800 / w));
-              sCanvas.width = sw;
-              sCanvas.height = sh;
-              sCanvas.getContext('2d').drawImage(canvas, 0, 0, sw, sh);
-              dataUrl = sCanvas.toDataURL('image/jpeg', 0.5);
-            }
-
-            resolve(dataUrl);
-          };
-          img.onerror = () => reject(new Error('图片加载失败'));
-          img.src = e.target.result;
-        };
-        reader.onerror = () => reject(new Error('文件读取失败'));
-        reader.readAsDataURL(file);
+    // Load a File OR a data URL into an <img>.
+    function loadImageSource(source) {
+      return new Promise(function (resolve, reject) {
+        var img = new Image();
+        img.onload = function () { resolve(img); };
+        img.onerror = function () { reject(new Error('图片解码失败')); };
+        if (typeof source === 'string') {
+          img.src = source;
+        } else {
+          var reader = new FileReader();
+          reader.onload = function (e) { img.src = e.target.result; };
+          reader.onerror = function () { reject(new Error('文件读取失败')); };
+          reader.readAsDataURL(source);
+        }
       });
     }
 
-    // Re-compress an existing data URL to smaller size (for localStorage)
-    function recompressDataUrl(dataUrl, target) {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          let w = img.width, h = img.height;
-          if (w > 1200 || h > 1200) {
-            const s = 1200 / Math.max(w, h);
-            w = Math.round(w * s);
-            h = Math.round(h * s);
-          }
-          const c = document.createElement('canvas');
-          c.width = w;
-          c.height = h;
-          c.getContext('2d').drawImage(img, 0, 0, w, h);
-          let result = c.toDataURL('image/jpeg', 0.6);
-          let est = (result.length - result.indexOf(',') - 1) * 0.75;
-          if (est > target && w > 800) {
-            const c2 = document.createElement('canvas');
-            c2.width = 800;
-            c2.height = Math.round(h * (800 / w));
-            c2.getContext('2d').drawImage(c, 0, 0, c2.width, c2.height);
-            result = c2.toDataURL('image/jpeg', 0.5);
-          }
-          resolve(result);
-        };
-        img.onerror = () => resolve(dataUrl);
-        img.src = dataUrl;
+    // Stepwise halving downscale — far sharper than a single big jump.
+    function downscaleTo(img, tw, th) {
+      var cw = img.naturalWidth || img.width;
+      var ch = img.naturalHeight || img.height;
+      var cur = document.createElement('canvas');
+      cur.width = cw; cur.height = ch;
+      var cx = cur.getContext('2d');
+      cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+      cx.drawImage(img, 0, 0);
+      while (Math.floor(cw / 2) >= tw && Math.floor(ch / 2) >= th && Math.floor(cw / 2) >= 200) {
+        var nw = Math.max(tw, Math.floor(cw / 2));
+        var nh = Math.max(th, Math.floor(ch / 2));
+        var nxt = document.createElement('canvas');
+        nxt.width = nw; nxt.height = nh;
+        var nx = nxt.getContext('2d');
+        nx.imageSmoothingEnabled = true; nx.imageSmoothingQuality = 'high';
+        nx.drawImage(cur, 0, 0, cw, ch, 0, 0, nw, nh);
+        cur = nxt; cw = nw; ch = nh;
+      }
+      var out = document.createElement('canvas');
+      out.width = tw; out.height = th;
+      var octx = out.getContext('2d');
+      octx.imageSmoothingEnabled = true; octx.imageSmoothingQuality = 'high';
+      octx.drawImage(cur, 0, 0, cw, ch, 0, 0, tw, th);
+      return out;
+    }
+
+    // Encode a File OR a data URL to an optimized image data URL, exactly once.
+    function prepareImage(source, opts) {
+      opts = opts || {};
+      var maxEdge = opts.maxEdge || OUT_MAX_EDGE;
+      var quality = opts.quality || OUT_QUALITY;
+      return loadImageSource(source).then(function (img) {
+        var w = img.naturalWidth || img.width;
+        var h = img.naturalHeight || img.height;
+        if (!w || !h) throw new Error('图片无尺寸信息');
+        var longEdge = Math.max(w, h);
+        var scale = longEdge > maxEdge ? maxEdge / longEdge : 1;
+        var tw = Math.max(1, Math.round(w * scale));
+        var th = Math.max(1, Math.round(h * scale));
+        var canvas;
+        if (scale < 1) {
+          canvas = downscaleTo(img, tw, th);
+        } else {
+          canvas = document.createElement('canvas');
+          canvas.width = tw; canvas.height = th;
+          var ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, tw, th);
+        }
+        var url;
+        if (SUPPORTS_WEBP) {
+          url = canvas.toDataURL('image/webp', quality);
+        } else {
+          // Fallback: JPEG loses alpha — keep PNG when the source likely has transparency.
+          var isPng = (source && source.type === 'image/png') ||
+                      (typeof source === 'string' && source.indexOf('data:image/png') === 0);
+          url = isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', quality);
+        }
+        return { url: url, w: tw, h: th };
       });
+    }
+
+    /* ===== PHASE 2: IMAGE FILES TO REPO (assets/works) =====
+       Uploaded images are published as real files in the repo and referenced by a
+       relative path instead of being inlined as base64 into index.html. Same content
+       -> same hash -> same path, so re-publishing overwrites (no orphan duplicates) and
+       index.html stays small. If an upload fails we keep the data URL and inline it,
+       so the site never loses an image. */
+    function extFromDataUrl(dataUrl) {
+      var m = /^data:image\/([a-zA-Z0-9.+-]+)/.exec(dataUrl);
+      var t = m ? m[1].toLowerCase() : 'jpg';
+      if (t === 'jpeg' || t === 'jpg' || t === 'pjpeg') return 'jpg';
+      if (t === 'svg+xml') return 'svg';
+      return t; // webp, png, gif ...
+    }
+    function dataUrlBase64(dataUrl) {
+      var i = dataUrl.indexOf(',');
+      return i === -1 ? '' : dataUrl.slice(i + 1);
+    }
+    // FNV-1a hash over the base64 body -> short, stable content id for filenames.
+    function hashString(str) {
+      var h = 0x811c9dc5;
+      for (var i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+      }
+      h = ((h ^ str.length) >>> 0);
+      return h.toString(36);
+    }
+
+    // PUT a base64 data URL to the repo at `path` (create or update). Throws on failure.
+    async function ghUploadFile(token, owner, repo, branch, path, dataUrl) {
+      var b64 = dataUrlBase64(dataUrl);
+      if (!b64) throw new Error('空的图片数据');
+      var api = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
+      var hdr = { 'Authorization': 'token ' + token, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' };
+      var resp = await fetch(api, {
+        method: 'PUT', headers: hdr,
+        body: JSON.stringify({ message: 'publish portfolio image', content: b64, branch: branch })
+      });
+      if (resp.status === 409) {
+        var g = await fetch(api + '?ref=' + branch + '&_t=' + Date.now(), { method: 'GET', headers: hdr });
+        var gi = await g.json();
+        resp = await fetch(api, {
+          method: 'PUT', headers: hdr,
+          body: JSON.stringify({ message: 'update portfolio image', content: b64, sha: gi.sha, branch: branch })
+        });
+      }
+      if (!resp.ok) {
+        var e = await resp.json().catch(function () { return {}; });
+        throw new Error((e && e.message) || ('HTTP ' + resp.status));
+      }
+      return true;
+    }
+
+    // Convert in-memory data-URL covers + galleries into repo files, mutating works to
+    // relative paths. Returns { convertedKeys, uploaded, failed }.
+    async function uploadPendingImages(token, owner, repo, branch) {
+      var pathCache = {};
+      var convertedKeys = [];
+      var uploaded = 0, failed = 0;
+
+      async function toPath(dataUrl, kind) {
+        if (typeof dataUrl !== 'string' || dataUrl.indexOf('data:image/') !== 0) return null;
+        if (pathCache[dataUrl]) return pathCache[dataUrl];
+        var path = 'assets/works/' + kind + '-' + hashString(dataUrlBase64(dataUrl)) + '.' + extFromDataUrl(dataUrl);
+        try {
+          await ghUploadFile(token, owner, repo, branch, path, dataUrl);
+          pathCache[dataUrl] = path; uploaded++;
+          return path;
+        } catch (upErr) {
+          console.warn('Image upload failed, will inline instead:', kind, upErr);
+          failed++;
+          return null;
+        }
+      }
+
+      for (var i = 0; i < works.length; i++) {
+        var w = works[i];
+        if (w.img && w.img.indexOf('data:image/') === 0) {
+          var p = await toPath(w.img, 'cover');
+          if (p) { w.img = p; convertedKeys.push('cover_img_card-' + i); }
+        }
+        if (w.gallery && w.gallery.length > 0) {
+          var garr = [];
+          var anyConverted = false;
+          for (var gi = 0; gi < w.gallery.length; gi++) {
+            var gp = await toPath(w.gallery[gi], 'gallery');
+            if (gp) { garr.push(gp); anyConverted = true; } else { garr.push(w.gallery[gi]); }
+          }
+          w.gallery = garr;
+          if (anyConverted) convertedKeys.push('detail_img_gallery-' + i);
+        }
+      }
+      return { convertedKeys: convertedKeys, uploaded: uploaded, failed: failed };
     }
 
     function handleFiles(files) {
@@ -3739,26 +3860,13 @@
           renderPreview();
         };
 
-        if (file.size > MAX_FILE_SIZE) {
-          // Large files: scale down first so the FileReader stays light, then
-          // recompress to the per-image localStorage target (IMG_TARGET).
-          compressImage(file, IMG_TARGET).then(processImage).catch(err => {
-            console.error('Compression error:', err);
-            showFeedback('图片处理失败', 'error', 3000);
-          });
-        } else {
-          // Small enough to read directly, but still recompress to IMG_TARGET so
-          // every stored image fits the same budget (prevents cache overflow).
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            recompressDataUrl(e.target.result, IMG_TARGET).then(processImage).catch(() => processImage(e.target.result));
-          };
-          reader.onerror = (e) => {
-            console.error('FileReader error:', e);
-            showFeedback('图片读取失败', 'error', 3000);
-          };
-          reader.readAsDataURL(file);
-        }
+        // Encode once from the original file (no double compression, WebP / alpha-safe).
+        prepareImage(file).then(function (res) {
+          processImage(res.url);
+        }).catch(function (err) {
+          console.error('Image processing error:', err);
+          showFeedback('图片处理失败：' + (err.message || '未知错误'), 'error', 3500);
+        });
       }
     }
 
@@ -4120,19 +4228,13 @@
         document.getElementById('npCoverPreview').innerHTML = `<img src="${dataUrl}" alt="cover">`;
       };
 
-      if (file.size > MAX_FILE_SIZE) {
-        compressImage(file, IMG_TARGET).then(applyCover).catch(err => {
-          console.error('Cover compression error:', err);
-          alert('封面图片压缩失败，请选择较小的图片');
-        });
-      } else {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          recompressDataUrl(ev.target.result, IMG_TARGET).then(applyCover).catch(() => applyCover(ev.target.result));
-        };
-        reader.onerror = () => { alert('封面图片读取失败'); };
-        reader.readAsDataURL(file);
-      }
+      // Encode once from the original file (WebP / alpha-safe, retina-sized).
+      prepareImage(file).then(function (res) {
+        applyCover(res.url);
+      }).catch(function (err) {
+        console.error('Cover processing error:', err);
+        alert('封面图片处理失败：' + (err.message || '未知错误'));
+      });
     });
 
     // Cancel
@@ -4655,7 +4757,12 @@
         const coverContainer = document.querySelector('[data-uploadable="cover"][data-img-id="card-' + i + '"]');
         if (coverContainer) {
           const coverImg = coverContainer.querySelector('img');
-          if (coverImg && coverImg.src) w.img = coverImg.src;
+          const domSrc = coverImg && coverImg.src ? coverImg.src : '';
+          // Only take a genuine uploaded image from the DOM. A picsum placeholder
+          // (https) in the DOM must not overwrite a cover already restored from
+          // IndexedDB into the works model — that is what caused the live site to
+          // silently fall back to placeholder covers after reload.
+          if (domSrc.indexOf('data:image/') === 0) w.img = domSrc;
         }
 
         if (detailIsActive) {
@@ -5251,6 +5358,17 @@
           });
         }
 
+        // 2c-pre. Publish images as repo files (assets/works) so index.html stays small
+        // and images keep high quality; uploadPendingImages mutates works to relative
+        // paths, and keeps any data URL inline if its upload fails.
+        showFeedback('正在上传案例图片到仓库...', 'info', false);
+        var uploadResult = { uploaded: 0, failed: 0, convertedKeys: [] };
+        try {
+          uploadResult = await uploadPendingImages(token, owner, repo, branch);
+        } catch (upErr) {
+          console.error('[Save] image upload phase error:', upErr);
+        }
+
         // 2c. CRITICAL: Replace the entire works array in index.html's JS source.
         // Card titles/categories are NOT in static HTML — cards are rendered dynamically
         // from the works array. We must replace the array in the JS source code directly.
@@ -5261,7 +5379,14 @@
             var escapedUrls = w.gallery.map(function(url) { return '"' + esc(url) + '"'; });
             galleryStr = ',\n        gallery:[' + escapedUrls.join(',') + ']';
           }
-          var imgStr = (w.img && w.img.indexOf('data:image/') === 0)
+          // Keep a real cover: uploaded repo path (assets/...), inline data URL fallback,
+          // or a genuine external URL. Picsum placeholder / empty -> fall back.
+          var isReal = w.img && (
+            w.img.indexOf('assets/') === 0 ||
+            w.img.indexOf('data:image/') === 0 ||
+            (/^https?:\/\//.test(w.img) && w.img.indexOf('picsum.photos') === -1)
+          );
+          var imgStr = isReal
             ? '"' + esc(w.img) + '"'
             : 'placeholderImgs[' + (((w.id || 1) - 1) % 16) + ']';
           return '{ id:' + (w.id || 0) + ', title:"' + esc(w.title) + '", category:"' + esc(w.category) +
@@ -5449,9 +5574,52 @@
         }
 
         var result = await putResp.json();
+
+        // Count real images now embedded in the published works array. After the
+        // Phase 2 repo-file upload, uploaded covers/galleries reference relative
+        // `assets/works/...` paths; only failed uploads keep inline data URLs.
+        var coverCount = 0, galWorkCount = 0, galImgCount = 0;
+        works.forEach(function(w) {
+          if (w.img && (w.img.indexOf('data:image/') === 0 || w.img.indexOf('assets/') === 0)) coverCount++;
+          if (w.gallery && w.gallery.length > 0) {
+            galWorkCount++;
+            w.gallery.forEach(function(g) {
+              if (g && (g.indexOf('data:image/') === 0 || g.indexOf('assets/') === 0)) galImgCount++;
+            });
+          }
+        });
+        var noImages = (coverCount === 0 && galImgCount === 0);
+
+        // Commit the freshly uploaded relative paths back to local draft storage:
+        // drop the now-redundant base64 from IndexedDB, re-render the preview, and
+        // re-save so shaohua_works holds the light asset paths. A reload or later
+        // save then reuses the repo files instead of re-uploading or re-inlining.
+        if (uploadResult && uploadResult.convertedKeys && uploadResult.convertedKeys.length) {
+          try {
+            await IDB.removeMany(uploadResult.convertedKeys);
+            try { rerenderGrid(); } catch (e) { console.warn('rerenderGrid after publish failed:', e); }
+            saveEditorData();
+          } catch (commitErr) {
+            console.warn('Could not commit published image paths locally:', commitErr);
+          }
+        }
+
+        var uploadedN = (uploadResult && uploadResult.uploaded) || 0;
+        var failedN = (uploadResult && uploadResult.failed) || 0;
+        var imgNote;
+        if (noImages) {
+          imgNote = '⚠ 注意：本次发布的案例里 0 张已上传图片（封面0 · 详情0）。图片可能没真正上传成功，请重新上传后再保存。';
+        } else {
+          imgNote = '已发布 ' + coverCount + ' 张封面 · ' + galImgCount + ' 张详情图（' + galWorkCount + ' 个案例）';
+          if (uploadedN > 0) imgNote += '，其中 ' + uploadedN + ' 张已存为仓库高清文件（assets/works，不占网页体积）';
+          if (failedN > 0) imgNote += '（' + failedN + ' 张仓库上传失败，已改用内嵌兜底）';
+          imgNote += '。';
+        }
+        var partialWarn = (noImages || failedN > 0);
+
         showFeedback(
-          '保存成功！<a href="' + result.commit.html_url + '" target="_blank">查看提交 →</a>',
-          'success', 8000
+          '保存成功！' + imgNote + ' <a href="' + result.commit.html_url + '" target="_blank">查看提交 →</a>',
+          partialWarn ? 'warn' : 'success', partialWarn ? 12000 : 10000
         );
 
       } catch (err) {
