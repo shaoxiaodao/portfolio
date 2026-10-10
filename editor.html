@@ -2085,6 +2085,11 @@
       color: #ff8888;
     }
 
+    .save-feedback.warn {
+      border-color: rgba(240,180,70,0.35);
+      color: #f0c060;
+    }
+
     .save-feedback a {
       color: #7ec8f8;
       text-decoration: underline;
@@ -3649,14 +3654,19 @@
         };
 
         if (file.size > MAX_FILE_SIZE) {
-          // Compress large images silently
-          compressImage(file, MAX_FILE_SIZE).then(processImage).catch(err => {
+          // Large files: scale down first so the FileReader stays light, then
+          // recompress to the per-image localStorage target (IMG_TARGET).
+          compressImage(file, IMG_TARGET).then(processImage).catch(err => {
             console.error('Compression error:', err);
             showFeedback('图片处理失败', 'error', 3000);
           });
         } else {
+          // Small enough to read directly, but still recompress to IMG_TARGET so
+          // every stored image fits the same budget (prevents cache overflow).
           const reader = new FileReader();
-          reader.onload = (e) => processImage(e.target.result);
+          reader.onload = (e) => {
+            recompressDataUrl(e.target.result, IMG_TARGET).then(processImage).catch(() => processImage(e.target.result));
+          };
           reader.onerror = (e) => {
             console.error('FileReader error:', e);
             showFeedback('图片读取失败', 'error', 3000);
@@ -4025,13 +4035,15 @@
       };
 
       if (file.size > MAX_FILE_SIZE) {
-        compressImage(file, MAX_FILE_SIZE).then(applyCover).catch(err => {
+        compressImage(file, IMG_TARGET).then(applyCover).catch(err => {
           console.error('Cover compression error:', err);
           alert('封面图片压缩失败，请选择较小的图片');
         });
       } else {
         const reader = new FileReader();
-        reader.onload = (ev) => { applyCover(ev.target.result); };
+        reader.onload = (ev) => {
+          recompressDataUrl(ev.target.result, IMG_TARGET).then(applyCover).catch(() => applyCover(ev.target.result));
+        };
         reader.onerror = () => { alert('封面图片读取失败'); };
         reader.readAsDataURL(file);
       }
@@ -4681,7 +4693,7 @@
       }
       // Collect images with size tracking
       let imageCount = 0;
-      const BUDGET = 3 * 1024 * 1024; // 3MB budget for images (leaves ~2MB for text data & JSON overhead)
+      const BUDGET = 4 * 1024 * 1024; // 4MB budget for images (text + gallery-stripped works are small; stays under the ~5MB origin limit)
       let totalImgSize = 0;
       const imageEntries = [];
       document.querySelectorAll('[data-uploadable]').forEach(el => {
@@ -4728,12 +4740,12 @@
         }
       });
       if (droppedCount > 0) {
-        console.warn(droppedCount + ' image(s) dropped due to localStorage budget limit');
+        console.warn(droppedCount + ' image(s) left out of the local cache due to budget limit');
         try {
           if (typeof showFeedback === 'function') {
-            showFeedback('存储空间不足，' + droppedCount + ' 张图片未保存。建议尽快保存到 GitHub。', 'error', 6000);
+            showFeedback('本地缓存接近上限，' + droppedCount + ' 张较大的图片暂未写入本地备份（图片仍在页面上，点击「保存到 GitHub」会正常上传）。请在关闭或刷新前完成一次「保存到 GitHub」。', 'warn', 8000);
           } else {
-            alert('存储空间不足，' + droppedCount + ' 张图片未保存到本地缓存。建议尽快点击「保存到GitHub」按钮备份数据。');
+            alert('本地缓存接近上限，' + droppedCount + ' 张较大的图片暂未写入本地备份。图片仍在页面上，点击「保存到 GitHub」会正常上传，请在关闭/刷新前先保存一次。');
           }
         } catch(e) { console.warn('Could not show image budget warning:', e); }
       }
