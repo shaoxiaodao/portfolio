@@ -2357,6 +2357,32 @@
       try { localStorage.removeItem('shaohua_works'); } catch(e2) {}
     }
 
+    // Repopulate w.gallery from shaohua_editor_data (detail_img_gallery-N).
+    // shaohua_works intentionally strips gallery base64 to avoid quota overflow,
+    // so after a reload w.gallery is empty. The GitHub publish merge reads
+    // w.gallery (not editor_data), so without this repopulation a reload followed
+    // by "Save to GitHub" would silently strip every project's gallery from the
+    // public index.html. Restore it here so the in-memory model is complete.
+    try {
+      const edRaw = localStorage.getItem('shaohua_editor_data');
+      if (edRaw) {
+        const ed = JSON.parse(edRaw);
+        if (ed && typeof ed === 'object') {
+          works.forEach(function(w, i) {
+            const gv = ed['detail_img_gallery-' + i];
+            if (typeof gv === 'string' && gv.charAt(0) === '[') {
+              try {
+                const arr = JSON.parse(gv);
+                if (Array.isArray(arr) && arr.length > 0) {
+                  w.gallery = arr.filter(function(u) { return typeof u === 'string' && u.indexOf('data:image/') === 0; });
+                }
+              } catch(gErr) { console.warn('Could not parse gallery for work', i, gErr); }
+            }
+          });
+        }
+      }
+    } catch(e) { console.warn('Could not repopulate galleries from editor data:', e); }
+
     /* ===== APPLY SAVED EDITOR DATA TO A SCOPE ===== */
     function sanitizeHTML(html) {
       if (typeof html !== 'string') return '';
@@ -4747,17 +4773,21 @@
               color: el.style.color || ''
             };
           });
-          // Cross-sync detail entries when detail is not active
-          if (!detailOverlay.classList.contains('active')) {
-            try {
-              var exRaw = localStorage.getItem('shaohua_editor_data');
-              if (exRaw) {
-                var ex = JSON.parse(exRaw);
-                if (ex && typeof ex === 'object') {
-                  Object.keys(ex).forEach(function(k) { if (!textOnly[k]) textOnly[k] = ex[k]; });
-                }
+          // Always preserve existing (non-DOM) keys — especially image base64 —
+          // so a quota overflow can never wipe previously-saved images, regardless
+          // of whether the detail overlay is currently open.
+          try {
+            var exRaw = localStorage.getItem('shaohua_editor_data');
+            if (exRaw) {
+              var ex = JSON.parse(exRaw);
+              if (ex && typeof ex === 'object') {
+                Object.keys(ex).forEach(function(k) { if (!textOnly[k]) textOnly[k] = ex[k]; });
               }
-            } catch(exErr) { console.warn('Failed to parse existing data in text-only retry:', exErr); }
+            }
+          } catch(exErr) { console.warn('Failed to parse existing data in text-only retry:', exErr); }
+          // Update detail/card text from works only when detail is not active
+          // (when it IS active the DOM already holds the freshest text).
+          if (!detailOverlay.classList.contains('active')) {
             works.forEach(function(w, i) {
               var dtK = 'detail-title-' + i;
               if (textOnly[dtK]) textOnly[dtK].text = w.title;
