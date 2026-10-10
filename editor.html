@@ -2037,6 +2037,23 @@
       pointer-events: none;
     }
 
+    .github-load-btn {
+      background: rgba(30,80,70,0.9);
+      border-color: rgba(70,190,160,0.3);
+      color: #d6f2ea;
+    }
+
+    .github-load-btn:hover {
+      background: rgba(38,100,88,0.95);
+      border-color: rgba(90,220,185,0.5);
+      color: #fff;
+    }
+
+    .github-load-btn:disabled {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
     .logout-btn {
       background: rgba(40,40,40,0.95);
     }
@@ -2246,8 +2263,12 @@
     <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
 
-  <!-- Editor Toolbar: Save to GitHub + Logout -->
+  <!-- Editor Toolbar: Load from GitHub + Save to GitHub + Logout -->
   <div class="editor-toolbar" id="editorToolbar">
+    <button class="editor-toolbar-btn github-load-btn" id="githubLoadBtn" title="从 GitHub 载入线上最新内容（会覆盖本地编辑）">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke-linecap="round" stroke-linejoin="round"/><polyline points="7 10 12 15 17 10" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="15" x2="12" y2="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="btn-label">从GitHub载入</span>
+    </button>
     <button class="editor-toolbar-btn github-save-btn" id="githubSaveBtn" title="保存到GitHub">
       <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round"/><polyline points="17 21 17 13 7 13 7 21" stroke-linecap="round" stroke-linejoin="round"/><polyline points="7 3 7 8 15 8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span class="btn-label">保存到GitHub</span>
@@ -4929,6 +4950,7 @@
 
     /* ===== GITHUB SAVE FUNCTIONALITY (DISABLED) ===== */
     const githubSaveBtn = document.getElementById('githubSaveBtn');
+    const githubLoadBtn = document.getElementById('githubLoadBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const saveFeedback = document.getElementById('saveFeedback');
 
@@ -5337,6 +5359,161 @@
         isGithubSaving = false;
         githubSaveBtn.disabled = false;
         githubSaveBtn.querySelector('.btn-label').textContent = origLabel;
+      }
+    });
+
+    /* ===== LOAD LATEST CONTENT FROM GITHUB (cross-machine editing) ===== */
+    let isGithubLoading = false;
+    githubLoadBtn.addEventListener('click', async () => {
+      if (isGithubLoading || isGithubSaving) return;
+
+      if (!confirm('「从 GitHub 载入」会用线上已发布的最新内容覆盖当前浏览器里的本地编辑草稿。\n\n如果你在这台电脑上还有没点「保存到 GitHub」的改动，请先取消、先保存。\n\n确定现在载入线上最新内容吗？')) {
+        return;
+      }
+
+      isGithubLoading = true;
+      var origLabel = githubLoadBtn.querySelector('.btn-label').textContent;
+      githubLoadBtn.querySelector('.btn-label').textContent = '载入中...';
+      githubLoadBtn.disabled = true;
+
+      try {
+        var token = sessionStorage.getItem('github_token');
+        var owner = sessionStorage.getItem('github_user') || 'shaoxiaodao';
+        var repo  = sessionStorage.getItem('github_repo') || 'portfolio';
+        var branch = 'main';
+        var apiBase = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents';
+
+        async function ghFetch(url) {
+          var sep = url.indexOf('?') === -1 ? '?' : '&';
+          var freshUrl = url + sep + '_t=' + Date.now();
+          var resp;
+          try {
+            resp = await fetch(freshUrl, { method: 'GET', cache: 'no-store', headers: { 'Authorization': 'token ' + token } });
+          } catch (netErr) {
+            throw new Error('网络请求失败，请检查网络连接后重试');
+          }
+          if (resp.status === 401) throw new Error('登录已过期，请重新登录后再试');
+          return resp;
+        }
+
+        // 1. Fetch current index.html (Contents API, with Blob fallback for >1MB)
+        showFeedback('正在从 GitHub 载入最新内容...', 'info', false);
+        var getResp = await ghFetch(apiBase + '/index.html?ref=' + branch);
+        if (!getResp.ok) throw new Error('获取文件失败 (' + getResp.status + ')');
+        var fileInfo = await getResp.json();
+        var rawB64 = (fileInfo.content || '').replace(/\s/g, '');
+        if (!rawB64 && fileInfo.sha) {
+          var blobResp = await ghFetch('https://api.github.com/repos/' + owner + '/' + repo + '/git/blobs/' + fileInfo.sha);
+          if (!blobResp.ok) throw new Error('获取文件内容失败（Blob API 返回 ' + blobResp.status + '）');
+          var blobInfo = await blobResp.json();
+          if (blobInfo.truncated) throw new Error('文件过大，GitHub 返回内容被截断，已中止载入。');
+          rawB64 = (blobInfo.content || '').replace(/\s/g, '');
+        }
+        if (!rawB64) throw new Error('从 GitHub 获取的 index.html 内容为空，已中止载入。');
+        var html = decodeURIComponent(escape(atob(rawB64)));
+        if (!html || html.length < 1000) throw new Error('获取的 index.html 内容异常，已中止载入。');
+
+        // 2. Parse the `const works = [...]` array from the published JS source
+        var worksStart = html.search(/const\s+works\s*=\s*\[/);
+        if (worksStart === -1) throw new Error('在 index.html 中未找到 works 数组，可能线上文件结构已变化，已中止载入。');
+        var bracketStart = html.indexOf('[', worksStart);
+        var depth = 1, inStr = false, strCh = '', pos = bracketStart + 1;
+        while (pos < html.length && depth > 0) {
+          var ch = html.charAt(pos);
+          if (inStr) {
+            if (ch === '\\') { pos += 2; continue; }
+            if (ch === strCh) { inStr = false; }
+          } else {
+            if (ch === '"' || ch === "'" || ch === '`') { inStr = true; strCh = ch; }
+            else if (ch === '[') { depth++; }
+            else if (ch === ']') { depth--; }
+          }
+          pos++;
+        }
+        if (depth !== 0) throw new Error('works 数组解析不完整（括号未闭合），已中止载入。');
+        var arrayBody = html.slice(bracketStart + 1, pos - 1);
+        var fetchedWorks;
+        try {
+          fetchedWorks = new Function('placeholderImgs', 'return [' + arrayBody + '];')(placeholderImgs);
+        } catch (evalErr) {
+          throw new Error('works 数组求值失败：' + evalErr.message);
+        }
+        if (!Array.isArray(fetchedWorks) || fetchedWorks.length === 0) throw new Error('载入的 works 为空，已中止。');
+        var worksValid = fetchedWorks.every(function(w) { return w && w.id && typeof w.title === 'string'; });
+        if (!worksValid) throw new Error('载入的 works 结构异常，已中止以防覆盖本地数据。');
+
+        // 3. Parse static editable text + images from the published HTML
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var data = {};
+        doc.querySelectorAll('[data-editable]').forEach(function(el) {
+          var key = el.getAttribute('data-editable');
+          if (!key) return;
+          data[key] = {
+            text: el.innerHTML,
+            fontFamily: el.style.fontFamily || '',
+            fontSize: el.style.fontSize || '',
+            color: el.style.color || ''
+          };
+        });
+        doc.querySelectorAll('[data-uploadable]').forEach(function(el) {
+          var type = el.getAttribute('data-uploadable');
+          var imgId = el.getAttribute('data-img-id');
+          if (!type || !imgId) return;
+          var key = type + '_img_' + imgId;
+          var imgs = el.querySelectorAll('img');
+          if (imgs.length === 0) return;
+          if (imgs.length === 1) {
+            var s = imgs[0].getAttribute('src');
+            if (s) data[key] = s;
+          } else {
+            var srcs = [];
+            imgs.forEach(function(im) { var ss = im.getAttribute('src'); if (ss) srcs.push(ss); });
+            if (srcs.length) data[key] = JSON.stringify(srcs);
+          }
+        });
+
+        // 4. Hydrate in-memory works + persist to localStorage (mirror save layout)
+        works.length = 0;
+        fetchedWorks.forEach(function(w) { works.push(w); });
+
+        // Galleries live in the works array; expose them to editor_data too so the
+        // reload-repopulate step and loadEditorData both find them.
+        works.forEach(function(w, i) {
+          if (w.gallery && w.gallery.length > 0) {
+            data['detail_img_gallery-' + i] = JSON.stringify(w.gallery);
+          }
+          if (w.img && w.img.indexOf('data:image/') === 0) {
+            data['cover_img_card-' + i] = w.img;
+          }
+        });
+
+        localStorage.setItem('shaohua_editor_data', JSON.stringify(data));
+        var savedGalleries = works.map(function(w) { return w.gallery; });
+        works.forEach(function(w) { delete w.gallery; });
+        try { localStorage.setItem('shaohua_works', JSON.stringify(works)); }
+        catch(worksErr) { console.warn('Could not persist works after load:', worksErr); }
+        works.forEach(function(w, i) { if (savedGalleries[i]) w.gallery = savedGalleries[i]; });
+
+        // 5. Re-render the editor UI from the freshly loaded content
+        // Hide the detail overlay WITHOUT closeDetail() (which would sync the
+        // stale open-detail DOM back into works and re-run saveEditorData,
+        // clobbering the content we just loaded).
+        if (typeof detailOverlay !== 'undefined' && detailOverlay.classList.contains('active')) {
+          detailOverlay.classList.remove('active');
+          document.body.style.overflow = '';
+          if (typeof detailContent !== 'undefined' && detailContent) detailContent.innerHTML = '';
+        }
+        rerenderGrid();
+        loadEditorData();
+
+        showFeedback('已载入线上最新内容：' + works.length + ' 个案例、' + Object.keys(data).length + ' 项数据。可以在这台电脑继续编辑了。', 'success', 8000);
+      } catch (err) {
+        console.error('GitHub load error:', err);
+        showFeedback('载入失败：' + err.message, 'error', 9000);
+      } finally {
+        isGithubLoading = false;
+        githubLoadBtn.disabled = false;
+        githubLoadBtn.querySelector('.btn-label').textContent = origLabel;
       }
     });
 
