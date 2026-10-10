@@ -4862,7 +4862,7 @@
       try {
         const raw = localStorage.getItem('shaohua_editor_data');
         if (!raw) return;
-        let data = JSON.parse(raw);
+        var data = JSON.parse(raw);
         // Safety: handle previously double-encoded data from old sync scripts
         if (typeof data === 'string') {
           try { data = JSON.parse(data); } catch(e2) { return; }
@@ -4941,7 +4941,30 @@
         console.error('Could not load editor data:', e);
       }
       // Images now live in IndexedDB (localStorage can't hold a portfolio's base64).
-      restoreImagesFromIDB();
+      // One-time rescue: if a legacy draft still has base64 images inside the
+      // localStorage editor_data blob (pre-IndexedDB), copy them into IndexedDB so
+      // they are not lost on the next save. We use setMany (not clear+set) so any
+      // already-migrated, fresher IndexedDB entries are never overwritten.
+      var legacyImgs = {};
+      var legacyCount = 0;
+      try {
+        Object.keys(data).forEach(function(k) {
+          if (k.indexOf('_img_') === -1) return;
+          var v = data[k];
+          if (typeof v === 'string' && (v.indexOf('data:image/') === 0 || v.charAt(0) === '[')) {
+            legacyImgs[k] = v; legacyCount++;
+          }
+        });
+      } catch (migErr) { console.warn('Legacy image scan skipped:', migErr); }
+      if (legacyCount > 0) {
+        IDB.setMany(legacyImgs).then(function () {
+          console.log('Migrated', legacyCount, 'legacy localStorage images -> IndexedDB');
+        }).catch(function () {}).then(function () {
+          restoreImagesFromIDB();
+        });
+      } else {
+        restoreImagesFromIDB();
+      }
     }
 
     // Apply an image map (key -> data URL / JSON gallery) to the current DOM.
