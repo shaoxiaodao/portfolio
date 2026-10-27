@@ -1200,7 +1200,7 @@
       { id:5, title:"HIBABY柔纸巾包装", category:"packaging", categoryName:"包装设计", url:"https://shaohua1990.lofter.com/", img:"assets/works/cover-1pbvj7c.jpg",
         desc:"HIBABY柔纸巾系列产品包装，以柔和的色彩与亲子的温馨感为核心，打造母婴级品质的视觉体验。",
         client:"HIBABY", year:"2025", scope:"包装设计 / 品牌视觉 / 系列产品" },
-      { id:6, title:"国网电宝IP品牌设计", category:"other", categoryName:"其他", url:"https://shaohua1990.lofter.com/", img:"assets/works/cover-lkbz5v.svg",
+      { id:6, title:"国网电宝IP品牌设计", category:"other", categoryName:"其他", url:"https://shaohua1990.lofter.com/", img:"assets/works/cover-pg0owu.jpg",
         desc:"为国网电宝打造专属IP形象，以可爱的能源精灵为原型，融合品牌属性与用户情感连接，提升品牌亲和力。",
         client:"国家电网", year:"2024", scope:"IP设计 / 品牌形象 / 衍生品",
         gallery:["assets/works/gallery-d8v4nx.jpg","assets/works/gallery-1lkqzdq.jpg","assets/works/gallery-1teew06.jpg","assets/works/gallery-1n36t0u.jpg","assets/works/gallery-1as0dt6.jpg","assets/works/gallery-16oj04a.jpg","assets/works/gallery-to2ek7.jpg","assets/works/gallery-1j65440.jpg","assets/works/gallery-1ipzcer.jpg","assets/works/gallery-ly0f0o.jpg","assets/works/gallery-1jytlvc.jpg","assets/works/gallery-1a7u415.jpg","assets/works/gallery-15gkdmc.jpg","assets/works/gallery-z0lloc.jpg","assets/works/gallery-194s32d.jpg","assets/works/gallery-1jfzwcm.jpg","assets/works/gallery-qw7xjp.jpg","assets/works/gallery-1a5bhwl.jpg","assets/works/gallery-1w8eh3j.jpg","assets/works/gallery-s0vtp4.jpg","assets/works/gallery-1rke888.jpg","assets/works/gallery-9hukg2.jpg","assets/works/gallery-clxxnn.jpg","assets/works/gallery-135a3hl.jpg","assets/works/gallery-10ic4fq.jpg","assets/works/gallery-zadwqf.jpg","assets/works/gallery-1mjy09v.jpg","assets/works/gallery-1krzjip.jpg","assets/works/gallery-crnolu.jpg","assets/works/gallery-iawfr8.jpg","assets/works/gallery-1rccuh1.jpg","assets/works/gallery-qu94r8.jpg","assets/works/gallery-1link6t.jpg","assets/works/gallery-x1qh9c.jpg","assets/works/gallery-h8dccu.jpg","assets/works/gallery-wmkk4y.jpg","assets/works/gallery-ntv93h.jpg","assets/works/gallery-t6p1bl.jpg","assets/works/gallery-6cpovx.jpg","assets/works/gallery-1igkm7k.jpg","assets/works/gallery-1xywwyt.jpg","assets/works/gallery-pb319p.jpg"] },
@@ -1234,7 +1234,7 @@
       { id:16, title:"JSK智能手环包装", category:"packaging", categoryName:"包装设计", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[15],
         desc:"JSK智能手环产品包装设计，以科技感与运动活力为设计方向，吸引年轻消费群体。",
         client:"JSK科技", year:"2025", scope:"包装设计 / 结构设计 / 视觉系统" }
-    ];;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ];;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
     // Restore works array from localStorage (includes any new projects added in editor mode)
     try {
@@ -1401,7 +1401,7 @@
           </div>
         </div>
         <div class="detail-gallery" data-uploadable="detail" data-img-id="gallery-${index}">
-          ${galleryImgs.slice(0, 5).map((img, gi) => `
+          ${galleryImgs.map((img, gi) => `
             <img style="width:100%;max-width:100%;height:auto;min-height:0;aspect-ratio:auto;object-fit:initial;display:block;margin:0;border-radius:0" src="${img}" alt="${w.title} - ${gi + 1}" class="detail-gallery-img" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221200%22 height=%22675%22%3E%3Crect fill=%22%23111%22 width=%221200%22 height=%22675%22/%3E%3Ctext x=%22600%22 y=%22337%22 font-family=%22sans-serif%22 font-size=%2224%22 fill=%22%23333%22 text-anchor=%22middle%22%3E${encodeURIComponent(w.title)}%3C/text%3E%3C/svg%3E'">
           `).join('')}
         </div>
@@ -1787,5 +1787,115 @@
     });
 
   </script>
+<script id="view-persist-script">(function(){try{(function viewPersist() {
+      if (window.__viewPersistActive) return;
+      window.__viewPersistActive = true;
+      var KEY = 'shaohua_view_state';
+      var _curDetailId = null;
+      function el(id) { return document.getElementById(id); }
+      function overlayActive(node) { return node && node.classList && node.classList.contains('active'); }
+      function curView() {
+        if (overlayActive(el('detailOverlay'))) return 'detail';
+        if (overlayActive(el('contactOverlay'))) return 'contact';
+        if (overlayActive(el('profileOverlay'))) return 'profile';
+        return 'home';
+      }
+      function state() {
+        try {
+          return {
+            view: curView(),
+            workId: _curDetailId,
+            winY: window.scrollY || window.pageYOffset || 0,
+            overlayY: (el('detailOverlay') || {}).scrollTop || 0
+          };
+        } catch (e) { return null; }
+      }
+      function save() { try { sessionStorage.setItem(KEY, JSON.stringify(state())); } catch (e) {} }
+      var _t = 0;
+      function saveSoon() { if (_t) clearTimeout(_t); _t = setTimeout(save, 200); }
+
+      window.addEventListener('scroll', saveSoon, { passive: true });
+      ['detailOverlay', 'contactOverlay', 'profileOverlay'].forEach(function (id) {
+        var node = el(id);
+        if (node) node.addEventListener('scroll', saveSoon, { passive: true });
+      });
+
+      var _open = window.openDetail;
+      if (typeof _open === 'function') {
+        window.openDetail = function (index) {
+          try {
+            _curDetailId = (typeof works !== 'undefined' && works[index])
+              ? (works[index].id != null ? works[index].id : index) : index;
+          } catch (e) { _curDetailId = index; }
+          var r = _open.apply(this, arguments);
+          save();
+          return r;
+        };
+      }
+      var _close = window.closeDetail;
+      if (typeof _close === 'function') {
+        window.closeDetail = function () {
+          _curDetailId = null;
+          var r = _close.apply(this, arguments);
+          save();
+          return r;
+        };
+      }
+      ['openContact', 'closeContact', 'openProfile', 'closeProfile'].forEach(function (fn) {
+        var orig = window[fn];
+        if (typeof orig !== 'function') return;
+        window[fn] = function () { var r = orig.apply(this, arguments); saveSoon(); return r; };
+      });
+
+      document.addEventListener('click', function (e) {
+        var card = e.target && e.target.closest ? e.target.closest('.portfolio-card') : null;
+        if (card) { try { sessionStorage.setItem('shaohua_home_y', String(window.scrollY || 0)); } catch (err) {} }
+      }, true);
+
+      window.addEventListener('pagehide', save);
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') save(); });
+      try { history.scrollRestoration = 'manual'; } catch (e) {}
+
+      function jumpScroll(target, y) {
+        if (!(y > 0)) return;
+        var html = document.documentElement;
+        var prev = html.style.scrollBehavior;
+        html.style.scrollBehavior = 'auto';
+        try { target.scrollTo ? target.scrollTo({ top: y, behavior: 'auto' }) : (target.scrollTop = y); }
+        catch (e) { try { target.scrollTop = y; } catch (e2) {} }
+        setTimeout(function () { html.style.scrollBehavior = prev; }, 500);
+      }
+      function restore() {
+        var st = null;
+        try { st = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) {}
+        if (!st) return;
+        var homeY = 0;
+        try { homeY = parseInt(sessionStorage.getItem('shaohua_home_y') || '0', 10) || 0; } catch (e) {}
+        var doWin = function () {
+          var y = (st.view === 'home') ? (st.winY || 0) : homeY;
+          jumpScroll(window, y);
+        };
+        if (st.view === 'detail' && st.workId != null && typeof works !== 'undefined' && typeof window.openDetail === 'function') {
+          var idx = -1;
+          for (var i = 0; i < works.length; i++) { if (works[i] && works[i].id === st.workId) { idx = i; break; } }
+          if (idx >= 0) {
+            window.openDetail(idx);
+            var ov = el('detailOverlay');
+            var ty = st.overlayY || 0;
+            var tries = 0;
+            var apply = function () {
+              if (overlayActive(ov) && ty > 0) jumpScroll(ov, ty);
+              if (tries++ < 12) setTimeout(apply, 120);
+            };
+            setTimeout(apply, 60);
+            doWin();
+            return;
+          }
+        }
+        doWin();
+      }
+      if (document.readyState === 'complete') setTimeout(restore, 40);
+      else window.addEventListener('load', function () { setTimeout(restore, 40); }, { once: true });
+    })();}catch(e){}})();</script>
 </body>
 </html>
