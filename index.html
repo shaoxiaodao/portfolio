@@ -1042,7 +1042,7 @@
     }
 
   </style>
-<style id="close-pin-fix">#detailClose{width:96px;height:96px}#detailClose svg{width:36px;height:36px;stroke-width:2}#detailBackTop{width:96px;height:96px}#detailBackTop svg{width:36px;height:36px}#detailClose,#contactClose,#profileClose{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .3s ease,transform .3s ease,border-color .3s ease}.detail-overlay.active ~ #detailClose,.contact-overlay.active ~ #contactClose,.profile-overlay.active ~ #profileClose{opacity:1;visibility:visible;pointer-events:all}</style><meta id="debug-no-cache" http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><script id="debug-no-cache-js">(function(){try{var K="__nc_reloaded__";if(sessionStorage.getItem(K)==="1"){sessionStorage.removeItem(K);return;}var n=performance.getEntriesByType&&performance.getEntriesByType("navigation")[0];var cached=n&&((n.transferSize===0&&n.responseStart>0)||n.type==="back_forward");if(cached){sessionStorage.setItem(K,"1");var u=new URL(location.href);u.searchParams.set("_nc",Date.now());location.replace(u.toString());}}}catch(e){}})();</script></head>
+<style id="close-pin-fix">#detailClose{width:96px;height:96px}#detailClose svg{width:36px;height:36px;stroke-width:2}#detailBackTop{width:96px;height:96px}#detailBackTop svg{width:36px;height:36px}#detailClose,#contactClose,#profileClose{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .3s ease,transform .3s ease,border-color .3s ease}.detail-overlay.active ~ #detailClose,.contact-overlay.active ~ #contactClose,.profile-overlay.active ~ #profileClose{opacity:1;visibility:visible;pointer-events:all}#mainBackTop{width:96px;height:96px}#mainBackTop svg{width:36px;height:36px}</style><meta id="debug-no-cache" http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><script id="debug-no-cache-js">(function(){try{var K="__nc_reloaded__";if(sessionStorage.getItem(K)==="1"){sessionStorage.removeItem(K);return;}var n=performance.getEntriesByType&&performance.getEntriesByType("navigation")[0];var cached=n&&((n.transferSize===0&&n.responseStart>0)||n.type==="back_forward");if(cached){sessionStorage.setItem(K,"1");var u=new URL(location.href);u.searchParams.set("_nc",Date.now());location.replace(u.toString());}}}catch(e){}})();</script></head>
 <body>
   <canvas id="particle-canvas"></canvas>
 
@@ -1234,10 +1234,22 @@
       { id:16, title:"JSK智能手环包装", category:"packaging", categoryName:"包装设计", url:"https://shaohua1990.lofter.com/", img:placeholderImgs[15],
         desc:"JSK智能手环产品包装设计，以科技感与运动活力为设计方向，吸引年轻消费群体。",
         client:"JSK科技", year:"2025", scope:"包装设计 / 结构设计 / 视觉系统" }
-    ];;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ];;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+// Dev flag: gate localStorage-based overrides. Public visitors always see
+// GitHub-published content; only ?dev=1 / #dev / sessionStorage shaohua_dev=1
+// enables the authoring B↔A live-sync path.
+window.__A_DEV_OK = (function(){
+  try {
+    if (/[?&]dev(?:=1|=true)?(?:&|$)/.test(location.search)) return true;
+    if (/#dev\b/.test(location.hash)) return true;
+    if (sessionStorage.getItem('shaohua_dev') === '1') return true;
+  } catch (e) {}
+  return false;
+})();
     // Restore works array from localStorage (includes any new projects added in editor mode)
-    try {
+    // dev-gated: public visitors must see GitHub-published works verbatim
+    if (window.__A_DEV_OK) try {
       const savedWorks = localStorage.getItem('shaohua_works');
       if (savedWorks) {
         const parsed = JSON.parse(savedWorks);
@@ -1270,6 +1282,7 @@
     }
 
     function applySavedDataToScope(scope) {
+      if (!window.__A_DEV_OK) return; // public visitors see GitHub text verbatim
       try {
         const raw = localStorage.getItem('shaohua_editor_data');
         if (!raw) return;
